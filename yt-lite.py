@@ -121,7 +121,7 @@ def list_formats(url):
 
 def main():
     # First, check for --gui flag directly in sys.argv before any argument parsing
-    # This ensures --gui takes priority over all other arguments including --help
+    # This ensures --gui takes priority over all other arguments
     if '--gui' in sys.argv:
         print("Launching GUI mode...")
         gui_launched = False
