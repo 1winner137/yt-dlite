@@ -1,4 +1,4 @@
-# YDLite
+# YT-Lite
 
 **YDLite** is a lightweight, versatile YouTube downloader that offers both a clean GUI and powerful command-line interface. Built on top of yt-dlp with simplicity in mind, works in similar in many ways.
 
