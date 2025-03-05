@@ -1,0 +1,5 @@
+#GUI
+yt-liteg.py - use pyinstaller --onefile --windowed --clean --strip .\youtube.py - windows
+
+#Non-GUI
+yt-lite.py - use pyinstaller --onefile  --clean --strip .\test.py - windows
