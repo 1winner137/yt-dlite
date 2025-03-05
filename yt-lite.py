@@ -124,12 +124,31 @@ def main():
     # This ensures --gui takes priority over all other arguments including --help
     if '--gui' in sys.argv:
         print("Launching GUI mode...")
+        gui_launched = False
+        
+        # First try Python script
         try:
-            subprocess.run(["python", "yt-liteg.py"])
+            result = subprocess.run(["python", "yt-liteg.py"], check=True)
+            if result.returncode == 0:
+                print("GUI launched successfully")
+                gui_launched = True
         except Exception as e:
-            print(f"Error launching GUI: {e}")
-        sys.exit(0)
-    
+            print("Failed to launch Python GUI script")
+            
+        # Try executable only if Python script failed
+        if not gui_launched:
+            try:
+                result = subprocess.run(["yt-liteg.exe"], check=True)
+                if result.returncode == 0:
+                    print("GUI executable launched successfully")
+                    gui_launched = True
+            except Exception as e2:
+                # Only show error if both methods failed
+                if not gui_launched:
+                    print("ERROR: Could not launch GUI")
+                    print("Please ensure that either yt-liteg.py or yt-liteg.exe exists in the same directory")
+        
+        sys.exit(0)    
     # Normal argument parsing for other cases
     parser = argparse.ArgumentParser(
         description="""
@@ -197,4 +216,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    #terminal version
