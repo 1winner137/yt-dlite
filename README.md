@@ -1,6 +1,6 @@
 # YT-Lite
 
-**YDLite** is a lightweight, versatile YouTube downloader that offers both a clean GUI and powerful command-line interface. Built on top of yt-dlp with simplicity in mind, works in similar in many ways.
+**YT-Lite** is a lightweight, versatile YouTube downloader that offers both a clean GUI and powerful command-line interface. Built on top of yt-dlp with simplicity in mind, works in similar in many ways.
 
 ## Features
 
@@ -23,8 +23,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/1winner137/yd-lite.git
-cd yd-lite
+git clone https://github.com/1winner137/yt-lite.git
+cd yt-lite
 
 # Install dependencies
 pip install -r requirements.txt
@@ -85,17 +85,17 @@ python yt-lite.py --video https://www.youtube.com/watch?v=example --output /path
 List available formats:
 
 ```bash
-python script.py --list-formats https://www.youtube.com/watch?v=example
+python yt-lite.py --list-formats https://www.youtube.com/watch?v=example
 ```
 
 This will display all available formats with their IDs, extensions, and resolutions, not limited to site.
 
 ### Resume Downloads
 
-YDLite can continue partially downloaded files:
+yt-lite can continue partially downloaded files:
 
 ```bash
-python script.py --resume --video https://www.youtube.com/watch?v=example
+python yt-lite.py --resume --video https://www.youtube.com/watch?v=example
 ```
 
 ### Custom Output Directory
@@ -103,7 +103,7 @@ python script.py --resume --video https://www.youtube.com/watch?v=example
 Save downloads to a specific location:
 
 ```bash
-python script.py --video https://www.youtube.com/watch?v=example --output ~/Downloads
+python yt-lite.py --video https://www.youtube.com/watch?v=example --output ~/Downloads
 ```
 
 ## Contributing
