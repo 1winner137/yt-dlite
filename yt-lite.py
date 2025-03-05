@@ -121,7 +121,7 @@ def list_formats(url):
 
 def main():
     # First, check for --gui flag directly in sys.argv before any argument parsing
-    # This ensures --gui takes priority over all other arguments
+    # This ensures --gui takes priority over all other arguments including --help
     if '--gui' in sys.argv:
         print("Launching GUI mode...")
         gui_launched = False
@@ -133,7 +133,7 @@ def main():
                 print("GUI launched successfully")
                 gui_launched = True
         except Exception as e:
-            print("Failed to launch Python GUI script")
+            print("Failed to launch Python GUI script, Trying yt-liteg.exe")
             
         # Try executable only if Python script failed
         if not gui_launched:
