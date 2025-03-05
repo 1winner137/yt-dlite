@@ -2,7 +2,6 @@
 
 **YT-Lite** is a lightweight, versatile YouTube downloader that offers both a clean GUI and powerful command-line interface. Built on top of yt-dlp with simplicity in mind, works in similar in many ways.
 
-![YDLite Logo](https://github.com/1winner137/yt-lite/blob/main/.github/yt-dlp.svg)
 
 ## Features
 
