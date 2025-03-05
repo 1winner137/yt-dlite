@@ -129,4 +129,4 @@ This project is licensed under the GNU GPLv3.0 License - see the LICENSE file fo
 
 ## Disclaimer
 
-This tool is for personal use only. Please respect copyright laws and the YouTube Terms of Service. yt-lite developers are not responsible for misuse of this software.
+This tool is for personal use only. Please respect copyright laws and the YouTube Terms of Service. yt-lite developers and contributors are not responsible for misuse of this software.
