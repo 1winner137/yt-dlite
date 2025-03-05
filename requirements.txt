@@ -1,0 +1,19 @@
+yt-dlp>=2023.3.4
+
+# The following are part of Python's standard library
+# and don't need to be installed separately, but are listed for documentation:
+# tkinter
+# ttk
+# filedialog
+# messagebox
+# scrolledtext
+# os
+# threading
+# time
+# subprocess
+# platform
+# datetime
+# functools
+# sys
+# re
+# argparse
