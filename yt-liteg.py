@@ -1,4 +1,3 @@
-#This is GUI
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import yt_dlp
@@ -140,19 +139,29 @@ class YouTubeDownloaderGUI:
         top_frame.pack(fill=tk.X, pady=(0, 5), ipady=5)
         
         # URL input with quick paste button
+        # URL input with quick paste button
         url_frame = ttk.Frame(top_frame)
         url_frame.pack(fill=tk.X, pady=(0, 5))
         url_frame.columnconfigure(1, weight=1)
-        # You can modify by putting text holder here
+
         ttk.Label(url_frame, text="Video URL:", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT, padx=5)
+
         self.url_entry = ttk.Entry(url_frame, width=70, font=("Helvetica", 10))
         self.url_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
+
         paste_button = ttk.Button(url_frame, text="Paste", width=5, command=self.paste_from_clipboard)
         paste_button.pack(side=tk.LEFT, padx=2)
-        
+
         fetch_button = ttk.Button(url_frame, text="Fetch Info", command=self.fetch_video_info)
         fetch_button.pack(side=tk.LEFT, padx=5)
+
+        # Set placeholder AFTER self.url_entry is created
+        self.set_placeholder()
+
+        # Bind events for placeholder behavior
+        self.url_entry.bind("<FocusIn>", self.clear_placeholder)
+        self.url_entry.bind("<FocusOut>", self.restore_placeholder)
+
         
         # Media type selection
         type_frame = ttk.LabelFrame(top_frame, text="Media Type")
@@ -379,14 +388,37 @@ class YouTubeDownloaderGUI:
         # To keep simple for now. but can be extended to use imported mediaplayer.py so as to have biult in player.
     #Paste from clipboard
     def paste_from_clipboard(self):
-        """Paste clipboard content to URL entry"""
+        """Paste clipboard content to URL entry with double quotes and handle placeholder"""
         try:
-            clipboard_text = self.root.clipboard_get()
-            self.url_entry.delete(0, tk.END)
-            self.url_entry.insert(0, clipboard_text)
-            self.log(f"Pasted URL from clipboard: {clipboard_text}", "DEBUG")
+            clipboard_text = self.root.clipboard_get().strip()
+            if clipboard_text:
+                formatted_url = f'{clipboard_text}'  # Enclose in double quotes
+                self.url_entry.delete(0, tk.END)
+                self.url_entry.insert(0, formatted_url)
+                self.url_entry.config(foreground="black")  # Reset text color
+                self.log(f'Pasted URL from clipboard: {formatted_url}', "DEBUG")
+            else:
+                self.set_placeholder()  # Restore placeholder if clipboard is empty
         except Exception as e:
             self.log(f"Failed to paste from clipboard: {str(e)}", "ERROR")
+            self.set_placeholder()  # Restore placeholder on error
+
+    def set_placeholder(self):
+        """Set placeholder text when the entry is empty"""
+        self.url_entry.delete(0, tk.END)
+        self.url_entry.insert(0, "Hit Ctrl+V to paste or click the paste button")
+        self.url_entry.config(foreground="gray")  # Make it visually distinct
+
+    def clear_placeholder(self, event):
+        """Clear placeholder when user focuses on entry"""
+        if self.url_entry.get() == "Hit Ctrl+V to paste":
+            self.url_entry.delete(0, tk.END)
+            self.url_entry.config(foreground="black")
+
+    def restore_placeholder(self, event):
+        """Restore placeholder if entry is empty when losing focus"""
+        if not self.url_entry.get():
+            self.set_placeholder()
 
     #This are information fetched from video url
     def get_column_title(self, column):
@@ -693,7 +725,7 @@ class YouTubeDownloaderGUI:
             # Log completion
             if self.video_info:
                 self.log("Video information loaded successfully", "INFO")
-    #format stuff start here, those which are fetched and let user download.            
+        #format stuff start here, those which are fetched and let user download.            
     def update_format_list(self):
         """Update the format list based on media type selection."""
         if not self.video_info:
@@ -705,7 +737,30 @@ class YouTubeDownloaderGUI:
         media_type = self.media_type.get()
         self.log(f"Updating format list for media type: {media_type}", "DEBUG")
         
-        # Sort formats by quality (resolution for video, bitrate for audio)
+        # Get filtered formats based on media type
+        filtered_formats = []
+        video_with_audio_formats = []  # For tracking formats with both video and audio
+        
+        for fmt in self.formats:
+            # For video formats
+            if media_type == 'video':
+                # Skip audio-only formats
+                if fmt.get('vcodec', 'none') == 'none':
+                    continue
+                
+                # For video formats with audio, add to special list
+                if fmt.get('acodec', 'none') != 'none':
+                    video_with_audio_formats.append(fmt)
+                    
+            # For audio formats
+            else:
+                # Skip video-only formats
+                if fmt.get('acodec', 'none') == 'none':
+                    continue
+            
+            filtered_formats.append(fmt)
+        
+        # Sort formats by quality
         def format_sort_key(fmt):
             if media_type == 'video':
                 # Get height as primary sort key for videos
@@ -720,26 +775,13 @@ class YouTubeDownloaderGUI:
                 filesize = fmt.get('filesize', 0) or fmt.get('filesize_approx', 0) or 0
                 return (-abr, -filesize)
         
-        # Get filtered and sorted formats
-        filtered_formats = []
-        for fmt in self.formats:
-            # For video formats
-            if media_type == 'video':
-                # Skip audio-only formats
-                if fmt.get('vcodec', 'none') == 'none':
-                    continue
-            # For audio formats
-            else:
-                # Skip video-only formats
-                if fmt.get('acodec', 'none') == 'none':
-                    continue
-            
-            filtered_formats.append(fmt)
-        
-        # Sort formats
+        # Sort all formats
         filtered_formats.sort(key=format_sort_key)
+        video_with_audio_formats.sort(key=format_sort_key)
         
         # Add formats to the tree
+        format_items = {}  # To keep track of tree items by format_id
+        
         for fmt in filtered_formats:
             format_id = fmt.get('format_id', 'N/A')
             extension = fmt.get('ext', 'N/A')
@@ -776,21 +818,44 @@ class YouTubeDownloaderGUI:
                 notes.append(f"Video: {fmt.get('vcodec')}")
             if fmt.get('acodec') and fmt.get('acodec') != 'none':
                 notes.append(f"Audio: {fmt.get('acodec')}")
+            else:
+                # Mark video-only formats
+                if media_type == 'video':
+                    notes.append("No Audio")
             if fmt.get('fps'):
                 notes.append(f"{fmt.get('fps')} fps")
             
             note = ', '.join(notes)
             
             # Add to tree
-            self.format_tree.insert('', 'end', values=(format_id, extension, resolution, filesize, note))
+            item_id = self.format_tree.insert('', 'end', values=(format_id, extension, resolution, filesize, note))
+            format_items[format_id] = item_id
         
         # Auto-select the best quality format
         if self.format_tree.get_children():
-            best_item = self.format_tree.get_children()[0]
-            self.format_tree.selection_set(best_item)
-            self.format_tree.see(best_item)
-            self.log(f"Auto-selected format: {self.format_tree.item(best_item, 'values')[0]}", "DEBUG")
-    
+            if media_type == 'video' and video_with_audio_formats:
+                # For video, select the best format that has both video and audio
+                best_format = video_with_audio_formats[0]
+                best_format_id = best_format.get('format_id', '')
+                
+                if best_format_id in format_items:
+                    best_item = format_items[best_format_id]
+                    self.format_tree.selection_set(best_item)
+                    self.format_tree.see(best_item)
+                    self.log(f"Auto-selected best format with both video and audio: {best_format_id}", "DEBUG")
+                else:
+                    # Fallback to first item if something went wrong
+                    best_item = self.format_tree.get_children()[0]
+                    self.format_tree.selection_set(best_item)
+                    self.format_tree.see(best_item)
+                    self.log(f"Auto-selected format: {self.format_tree.item(best_item, 'values')[0]}", "DEBUG")
+            else:
+                # For audio or if no video+audio formats found, select the first (best) item
+                best_item = self.format_tree.get_children()[0]
+                self.format_tree.selection_set(best_item)
+                self.format_tree.see(best_item)
+                self.log(f"Auto-selected format: {self.format_tree.item(best_item, 'values')[0]}", "DEBUG")
+        
     def format_file_size(self, size_bytes):
         """Format file size to human-readable format."""
         if size_bytes < 1024:
