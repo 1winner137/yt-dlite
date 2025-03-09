@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Check for administrator privileges
+:: Check for administrator privilegess
 NET SESSION >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo [33mWARNING: This script is not running with administrator privileges.[0m
