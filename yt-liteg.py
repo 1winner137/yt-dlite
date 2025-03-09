@@ -17,6 +17,7 @@ class YouTubeDownloaderGUI:
         self.root.geometry("900x700")
         self.root.resizable(True, True)
         self.root.minsize(920, 450)
+        self.fetch_cancelled = False
 
         self.sort_state = {
             "format_tree": {"column": "resolution", "direction": "asc"},
@@ -140,6 +141,7 @@ class YouTubeDownloaderGUI:
         
         # URL input with quick paste button
         # URL input with quick paste button
+        # URL input with quick paste button
         url_frame = ttk.Frame(top_frame)
         url_frame.pack(fill=tk.X, pady=(0, 5))
         url_frame.columnconfigure(1, weight=1)
@@ -154,6 +156,9 @@ class YouTubeDownloaderGUI:
 
         fetch_button = ttk.Button(url_frame, text="Fetch Info", command=self.fetch_video_info)
         fetch_button.pack(side=tk.LEFT, padx=5)
+
+        cancel_button = ttk.Button(url_frame, text="X", width=2, command=self.cancel_fetch)
+        cancel_button.pack(side=tk.LEFT, padx=2)
 
         # Set placeholder AFTER self.url_entry is created
         self.set_placeholder()
@@ -322,7 +327,7 @@ class YouTubeDownloaderGUI:
         self.log_text.tag_configure("INFO", foreground="black")
         self.log_text.tag_configure("DEBUG", foreground="blue")
         self.log_text.tag_configure("ERROR", foreground="red")
-    #Downloads Tab
+    #Downloads tab start here
     def setup_downloads_tab(self):
         """Set up the downloads history tab with video player"""
         downloads_frame = ttk.Frame(self.downloads_tab, padding="10")
@@ -346,13 +351,13 @@ class YouTubeDownloaderGUI:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         self.downloads_tree = ttk.Treeview(tree_frame, columns=("filename", "date", "size"), 
-                                          show="headings", yscrollcommand=scrollbar.set)
+                                        show="headings", yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.downloads_tree.yview)
         
         # Configure column headings with sort functionality
         for col in ["filename", "date", "size"]:
             self.downloads_tree.heading(col, text=self.get_column_title(col), 
-                                      command=lambda c=col: self.sort_treeview(self.downloads_tree, c, "downloads_tree"))
+                                    command=lambda c=col: self.sort_treeview(self.downloads_tree, c, "downloads_tree"))
         
         self.downloads_tree.column("filename", width=200)
         self.downloads_tree.column("date", width=120)
@@ -360,6 +365,19 @@ class YouTubeDownloaderGUI:
         
         self.downloads_tree.pack(fill=tk.BOTH, expand=True)
         self.downloads_tree.bind("<<TreeviewSelect>>", self.on_download_selected)
+        
+        # Add double-click binding to play files
+        self.downloads_tree.bind("<Double-1>", lambda event: self.play_selected_file())
+        
+        # Create right-click context menu
+        self.context_menu = tk.Menu(self.downloads_tree, tearoff=0)
+        self.context_menu.add_command(label="Play", command=self.play_selected_file)
+        self.context_menu.add_command(label="Delete", command=self.delete_selected_file)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Open containing folder", command=self.open_containing_folder)
+        
+        # Bind right-click event
+        self.downloads_tree.bind("<Button-3>", self.show_context_menu)
         
         # Buttons for download management
         button_frame = ttk.Frame(list_frame)
@@ -383,9 +401,17 @@ class YouTubeDownloaderGUI:
         
         # File info
         self.preview_info_var = tk.StringVar(value="Select a file to preview")
-        ttk.Label(preview_frame, textvariable=self.preview_info_var, wraplength=300).pack(pady=10)
-        
-        # To keep simple for now. but can be extended to use imported mediaplayer.py so as to have biult in player.
+        ttk.Label(preview_frame, textvariable=self.preview_info_var, wraplength=300).pack(pady=10)        
+    #adding some
+    def show_context_menu(self, event):
+        """Show the context menu on right-click"""
+        # Select the item under the cursor first
+        item = self.downloads_tree.identify_row(event.y)
+        if item:
+            self.downloads_tree.selection_set(item)
+            self.context_menu.post(event.x_root, event.y_root)
+
+    # To keep simple for now. but can be extended to use imported mediaplayer.py so as to have biult in player.
     #Paste from clipboard
     def paste_from_clipboard(self):
         """Paste clipboard content to URL entry with double quotes and handle placeholder"""
@@ -544,12 +570,28 @@ class YouTubeDownloaderGUI:
                 self.set_loading_state(False)  # Ensure loading state resets
 
         # Use a thread to prevent freezing the GUI
-        fetch_thread = threading.Thread(target=fetch_and_update, daemon=True)
-        fetch_thread.start()
+        self.fetch_thread = threading.Thread(target=fetch_and_update, daemon=True)
+        self.fetch_cancelled = False  # Reset cancellation flag
+        self.fetch_thread.start()
 
         # Start a timer to check for timeouts, so that they can be logged
-        self.check_fetch_timeout(fetch_thread, 15)
-
+        self.check_fetch_timeout(self.fetch_thread, 15)
+    #cancel fecthing
+    def cancel_fetch(self):
+        """Cancel any ongoing fetch operations"""
+        # Set a flag to indicate cancellation
+        self.fetch_cancelled = True
+        
+        # Update the UI
+        self.set_loading_state(False)
+        self.status_label.config(text="Operation cancelled")
+        self.log("Fetch operation cancelled by user", "INFO")
+        
+        # Clear partial data
+        if hasattr(self, 'fetch_thread') and self.fetch_thread.is_alive():
+            # Note: Python threads can't be forcibly terminated,
+            # but we can use a flag to signal the thread to stop
+            self.log("Signaling fetch thread to stop", "DEBUG")
     def check_fetch_timeout(self, thread, timeout):
         """Check if the fetch operation is taking too long"""
         if thread.is_alive() and timeout > 0:
@@ -598,29 +640,75 @@ class YouTubeDownloaderGUI:
         """Background thread for fetching video info."""
         start_time = time.time()
         try:
+            # Check if operation was cancelled before starting
+            if self.fetch_cancelled:
+                self.log("Fetch cancelled before starting", "INFO")
+                return
+                
+            # Setup yt-dlp options
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
             }
             
+            # Create YoutubeDL object with options
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Check cancellation before expensive operation
+                if self.fetch_cancelled:
+                    self.log("Fetch cancelled before extraction", "INFO")
+                    return
+                    
+                # Extract information about the video
                 self.video_info = ydl.extract_info(url, download=False)
                 
-            self.formats = self.video_info.get('formats', [])
-            
-            # Update the UI in the main thread
-            self.root.after(0, self.update_format_list)
-            self.root.after(0, self.update_video_info)
-            self.root.after(0, lambda: self.status_label.config(text=f"Found {len(self.formats)} formats"))
-            
-            elapsed = time.time() - start_time
-            self.log(f"Fetch completed in {elapsed:.2f} seconds", "DEBUG")
+                # Check cancellation after extraction
+                if self.fetch_cancelled:
+                    self.log("Fetch cancelled after extraction", "INFO")
+                    self.video_info = None
+                    return
+                
+                # Process the formats if we have video info
+                if self.video_info:
+                    self.formats = self.video_info.get('formats', [])
+                    
+                    # Check cancellation before UI update
+                    if self.fetch_cancelled:
+                        self.log("Fetch cancelled before UI update", "INFO")
+                        self.video_info = None
+                        self.formats = []
+                        return
+                    
+                    # Update the UI in the main thread
+                    self.root.after(0, self.update_format_list)
+                    self.root.after(0, self.update_video_info)
+                    self.root.after(0, lambda: self.status_label.config(
+                        text=f"Found {len(self.formats)} formats"))
+                    
+                    # Log completion time
+                    elapsed = time.time() - start_time
+                    self.log(f"Fetch completed in {elapsed:.2f} seconds", "DEBUG")
+                else:
+                    # Handle case where no video info was returned
+                    if not self.fetch_cancelled:
+                        self.root.after(0, lambda: messagebox.showerror(
+                            "Error", "No video information found. Check the URL and try again."))
+                        self.root.after(0, lambda: self.status_label.config(
+                            text="No video information found"))
+                        self.log("No video information returned", "ERROR")
         
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to fetch video info: {str(e)}"))
-            self.root.after(0, lambda: self.status_label.config(text="Error fetching information"))
-            self.log(f"Error fetching video info: {str(e)}", "ERROR")
-
+            # Only show error if not cancelled
+            if not self.fetch_cancelled:
+                self.root.after(0, lambda: messagebox.showerror(
+                    "Error", f"Failed to fetch video info: {str(e)}"))
+                self.root.after(0, lambda: self.status_label.config(
+                    text="Error fetching information"))
+                self.log(f"Error fetching video info: {str(e)}", "ERROR")
+        
+        finally:
+            # Reset loading state if not cancelled (cancelled will handle this itself)
+            if not self.fetch_cancelled:
+                self.root.after(0, lambda: self.set_loading_state(False))
     def update_video_info(self):
         """Update the video information display"""
         if not self.video_info:
@@ -881,37 +969,83 @@ class YouTubeDownloaderGUI:
         if not selected_items:
             messagebox.showerror("Error", "Please select a format to download")
             return
-        
+            
         if not self.video_info:
             messagebox.showerror("Error", "No video information available")
             return
-        
+            
         # Get selected format ID
         selected_item = selected_items[0]
-        format_id = self.format_tree.item(selected_item, 'values')[0]
-        
+        format_values = self.format_tree.item(selected_item, 'values')
+        format_id = format_values[0]
+            
+        # Determine if the selected format has audio by checking the actual format data
+        selected_format = None
+        is_video_only = False
+        for fmt in self.formats:
+            if fmt.get('format_id') == format_id:
+                selected_format = fmt
+                # If acodec is 'none', it's a video-only format
+                is_video_only = (fmt.get('acodec') == 'none')
+                break
+                    
         # Get save path
         save_path = self.save_path_entry.get().strip()
         if not save_path:
             messagebox.showerror("Error", "Please specify a save location")
             return
-        
+            
         if not os.path.isdir(save_path):
             messagebox.showerror("Error", "Save location is not a valid directory")
             return
+            
+        # Configure the format string for download
+        download_format = format_id
         
-        self.log(f"Starting download of format {format_id} to {save_path}", "INFO")
-        
+        # Track if we're using a combined format
+        is_combined_format = False
+            
+        # If it's a video-only format and we're in video mode, combine with audio
+        media_type = self.media_type.get()
+        if media_type == 'video' and is_video_only and selected_format:
+            is_combined_format = True
+            # Get the container format (extension)
+            container = selected_format.get('ext', '')
+                    
+            # Construct format string based on container
+            if container == 'mp4':
+                # For MP4, prefer mp4/m4a audio
+                download_format = f"{format_id}+bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio"
+            elif container == 'webm':
+                # For WebM, prefer webm audio
+                download_format = f"{format_id}+bestaudio[ext=webm]/bestaudio"
+            else:
+                # For other containers, use any best audio
+                download_format = f"{format_id}+bestaudio"
+                        
+            self.log(f"Selected format {format_id} is video-only. Auto-combining with audio using format string: {download_format}", "INFO")
+            messagebox.showinfo("Auto-Combining",
+                            "Selected format doesn't include audio. Will automatically download and combine with the best audio track.")
+            
+        self.log(f"Starting download with format specification: {download_format}", "INFO")
+            
         # Reset cancel flag
         self.cancel_flag = False
-        
+            
+        # Enable cancel button if it exists
+        if hasattr(self, 'cancel_button'):
+            self.cancel_button.config(state=tk.NORMAL)
+            
         # Start download in a separate thread
-        self.download_thread = threading.Thread(target=self._download_thread, args=(format_id, save_path), daemon=True)
+        self.download_thread = threading.Thread(
+            target=self._download_thread, 
+            args=(download_format, save_path, is_combined_format),  # Pass the combined format flag
+            daemon=True
+        )
         self.download_thread.start()
-        
+            
         # Switch to log tab to show progress
-        self.notebook.select(1)  # Index 1 is the Verbose tab
-    
+        self.notebook.select(1)  # Index 1 is the Verbose tab    
     def cancel_download(self):
         """Cancel the current download"""
         if self.download_thread and self.download_thread.is_alive():
@@ -919,15 +1053,16 @@ class YouTubeDownloaderGUI:
             self.log("Download cancellation requested", "INFO")
             self.status_label.config(text="Cancelling download...")
             
-    def _download_thread(self, format_id, save_path):
+    def _download_thread(self, format_id, save_path, is_combined_format=False):
         """Background thread for downloading."""
         # Fixed lambda with parentheses
         self.root.after(0, lambda: (self.status_label.config(text="Downloading...")))
         self.root.after(0, lambda: (self.progress.__setitem__('value', 0)))
-    
+
         start_time = time.time()
         self.current_download_path = None  # Reset the path
-    
+        downloaded_file_reported = False   # Flag to track if the file has been reported
+
         def progress_hook(d):
             if self.cancel_flag:
                 # Signal to yt-dlp to stop the download
@@ -959,7 +1094,6 @@ class YouTubeDownloaderGUI:
                 
                 elif d.get('downloaded_bytes') and d.get('total_bytes_estimate'):
                     p = int(d['downloaded_bytes'] / d['total_bytes_estimate'] * 100)
-                    # Fixed lambda with parentheses
                     self.root.after(0, lambda: (self.progress.__setitem__('value', p)))
                 
                     if not hasattr(progress_hook, "last_percent") or p != progress_hook.last_percent:
@@ -978,41 +1112,97 @@ class YouTubeDownloaderGUI:
             elif d['status'] == 'finished':
                 # Fixed lambda with parentheses
                 self.root.after(0, lambda: (self.progress.__setitem__('value', 100)))
-                self.root.after(0, lambda: (self.status_label.config(text="Processing download...")))
-            
-                # Store the downloaded file path
-                if d.get('filename'):
-                    self.current_download_path = d.get('filename')
-                    self.log(f"Download finished: {self.current_download_path}", "INFO")
                 
+                # For combined formats, this hook might be called multiple times
+                if d.get('filename'):
+                    # For combined downloads, we only want to track the final merged file
+                    if is_combined_format:
+                        # Store temp path but don't report yet - wait for the final merged file
+                        self.current_download_path = d.get('filename')
+                        self.log(f"Component download finished: {self.current_download_path}", "DEBUG")
+                        self.root.after(0, lambda: (self.status_label.config(text="Merging audio and video...")))
+                    else:
+                        # For single format, this is the final file
+                        self.current_download_path = d.get('filename')
+                        self.log(f"Download finished: {self.current_download_path}", "INFO")
+                        self.root.after(0, lambda: (self.status_label.config(text="Processing download...")))
+            
             elif d['status'] == 'error':
                 self.root.after(0, lambda: (self.status_label.config(text=f"Error: {d.get('error', 'Unknown error')}")))
-                self.log(f"Download error: {d.get('error', 'Unknown error')}", "ERROR")                
-                # Store the downloaded file path
-                if d.get('filename'):
-                    self.current_download_path = d.get('filename')
-                    self.log(f"Download finished: {self.current_download_path}", "INFO")
-                    
-            elif d['status'] == 'error':
-                self.root.after(0, lambda: self.status_label.config(text=f"Error: {d.get('error', 'Unknown error')}"))
                 self.log(f"Download error: {d.get('error', 'Unknown error')}", "ERROR")
         
+        def post_process_hook(d):
+            nonlocal downloaded_file_reported
+            
+            # This hook is specifically for tracking the final merged file in combined downloads
+            if d['status'] == 'finished' and is_combined_format:
+                if d.get('__postprocessor', '') == 'MoveFiles' and d.get('__files_to_move', {}) and not downloaded_file_reported:
+                    # Get the final output file path
+                    for _, dest_file in d.get('__files_to_move', {}).items():
+                        if dest_file:
+                            self.current_download_path = dest_file
+                            self.log(f"Combined download finished: {self.current_download_path}", "INFO")
+                            downloaded_file_reported = True
+                            break
+        #
         try:
-            # Create a unique filename to avoid overwriting files
-            outtmpl = os.path.join(save_path, '%(title)s-%(id)s.%(ext)s')
+            # Function to create a unique filename
+            def get_unique_filename(base_path):
+                """Generate a unique filename by adding numeric suffixes if file exists"""
+                if not os.path.exists(base_path):
+                    return base_path
+                    
+                name, ext = os.path.splitext(base_path)
+                counter = 1
+                
+                while True:
+                    new_path = f"{name}_{counter}{ext}"
+                    if not os.path.exists(new_path):
+                        return new_path
+                    counter += 1
+            
+            # Basic template for output filename
+            base_outtmpl = os.path.join(save_path, '%(title)s-%(id)s.%(ext)s')
+            
+            self.log(f"Using format specification: {format_id}", "INFO")
+            
+            # Custom hook to handle filename conflicts
+            original_hooks = progress_hook
+            
+            def filename_progress_hook(progress):
+                # Call the original progress hook
+                original_hooks(progress)
+                
+                # If download is complete, check and rename the file if needed
+                if progress['status'] == 'finished':
+                    output_file = progress['filename']
+                    unique_file = get_unique_filename(output_file)
+                    
+                    # If the filename changed due to conflict, rename it
+                    if unique_file != output_file and not os.path.exists(unique_file):
+                        try:
+                            os.rename(output_file, unique_file)
+                            progress['filename'] = unique_file
+                            self.log(f"Renamed output file to avoid conflict: {unique_file}", "INFO")
+                        except Exception as rename_err:
+                            self.log(f"Error renaming file: {rename_err}", "WARNING")
             
             ydl_opts = {
                 'format': format_id,
-                'outtmpl': outtmpl,
-                'progress_hooks': [progress_hook],
-                'quiet': False,  # Enable output for verbose logging
+                'outtmpl': base_outtmpl,
+                'progress_hooks': [filename_progress_hook],
+                'postprocessor_hooks': [post_process_hook],
+                'quiet': False,
                 'no_warnings': False,
+                'merge_output_format': 'mp4',
             }
+            
+            self.log(f"yt-dlp options: {ydl_opts}", "DEBUG")
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 if not self.cancel_flag:
                     ydl.download([self.video_info['webpage_url']])
-                
+            
             elapsed = time.time() - start_time
             
             if self.cancel_flag:
@@ -1024,7 +1214,10 @@ class YouTubeDownloaderGUI:
                 
                 # Add the file to our downloads list and refresh the tab
                 if self.current_download_path:
-                    self.downloaded_files.append(self.current_download_path)
+                    # Ensure this file isn't already in the list (could happen with combined formats)
+                    if self.current_download_path not in self.downloaded_files:
+                        self.downloaded_files.append(self.current_download_path)
+                        
                     self.root.after(0, self.refresh_downloads_list)
                     
                     # Switch to the downloads tab to show the result
@@ -1039,7 +1232,7 @@ class YouTubeDownloaderGUI:
                                 self.on_download_selected(None)
                     
                     self.root.after(100, select_new_file)
-            
+
         except Exception as e:
             if self.cancel_flag:
                 self.root.after(0, lambda: self.status_label.config(text="Download cancelled"))
@@ -1047,16 +1240,29 @@ class YouTubeDownloaderGUI:
             else:
                 self.root.after(0, lambda: messagebox.showerror("Error", f"Download failed: {str(e)}"))
                 self.root.after(0, lambda: self.status_label.config(text="Download failed"))
-                self.log(f"Download failed: {str(e)}", "ERROR")
+                self.log(f"Download failed: {str(e)}", "ERROR")    
     #This is part of Downloads Tab
     def refresh_downloads_list(self):
-        """Refresh the downloads list in the Downloads tab"""
+        """Refresh the downloads list in the Downloads tab with files organized by folders"""
         # Clear the current tree
         self.downloads_tree.delete(*self.downloads_tree.get_children())
         
-        # Add downloaded files to the tree
+        # Define media file extensions to look for
+        video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mov', '.flv']
+        audio_extensions = ['.mp3', '.m4a', '.wav', '.ogg', '.aac', '.flac']
+        
+        # Create main folder categories in the tree
+        video_folder = self.downloads_tree.insert('', 'end', text="Videos", open=True)
+        audio_folder = self.downloads_tree.insert('', 'end', text="Audio", open=True)
+        other_folder = self.downloads_tree.insert('', 'end', text="Other Files", open=True)
+        
+        # Track all files found to avoid duplicates
+        all_files_found = set()
+        
+        # First, add any files that are in our tracked downloads list
         for file_path in self.downloaded_files:
             if os.path.exists(file_path):
+                all_files_found.add(file_path)
                 filename = os.path.basename(file_path)
                 
                 # Get file info
@@ -1068,9 +1274,93 @@ class YouTubeDownloaderGUI:
                     file_size = "Unknown"
                     mod_time = "Unknown"
                 
-                self.downloads_tree.insert('', 'end', values=(filename, mod_time, file_size), tags=(file_path,))
+                # Determine the parent folder based on file extension
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in video_extensions:
+                    parent = video_folder
+                elif ext in audio_extensions:
+                    parent = audio_folder
+                else:
+                    parent = other_folder
+                
+                self.downloads_tree.insert(parent, 'end', values=(filename, mod_time, file_size), tags=(file_path,))
+        
+        # Scan download directories for additional media files
+        try:
+            # Use the save path if defined, otherwise default to a downloads folder
+            scan_paths = []
+            if hasattr(self, 'save_path') and self.save_path:
+                scan_paths.append(self.save_path)
             
-        self.log(f"Downloads list refreshed with {len(self.downloaded_files)} files", "DEBUG")
+            # Add default locations to scan
+            default_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+            if os.path.exists(default_downloads):
+                scan_paths.append(default_downloads)
+            
+            # Add the current directory
+            scan_paths.append(os.getcwd())
+            
+            # Scan each path for media files
+            for scan_path in scan_paths:
+                if os.path.exists(scan_path):
+                    for root, dirs, files in os.walk(scan_path):
+                        # Don't scan too deep
+                        if root.count(os.sep) > scan_path.count(os.sep) + 2:
+                            continue
+                        
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            
+                            # Skip if we've already added this file
+                            if file_path in all_files_found:
+                                continue
+                            
+                            # Check if it's a media file
+                            ext = os.path.splitext(file)[1].lower()
+                            if ext in video_extensions or ext in audio_extensions:
+                                all_files_found.add(file_path)
+                                
+                                # Get file info
+                                try:
+                                    file_stats = os.stat(file_path)
+                                    file_size = self.format_file_size(file_stats.st_size)
+                                    mod_time = datetime.datetime.fromtimestamp(file_stats.st_mtime).strftime('%Y-%m-%d %H:%M')
+                                except:
+                                    file_size = "Unknown"
+                                    mod_time = "Unknown"
+                                
+                                # Add to the appropriate folder
+                                if ext in video_extensions:
+                                    parent = video_folder
+                                else:
+                                    parent = audio_folder
+                                
+                                self.downloads_tree.insert(parent, 'end', values=(file, mod_time, file_size), tags=(file_path,))
+                                
+                                # Add to our tracked downloads if not already there
+                                if file_path not in self.downloaded_files:
+                                    self.downloaded_files.append(file_path)
+        except Exception as e:
+            self.log(f"Error scanning for media files: {str(e)}", "ERROR")
+        
+        # Update folder labels with counts
+        video_count = len(self.downloads_tree.get_children(video_folder))
+        audio_count = len(self.downloads_tree.get_children(audio_folder))
+        other_count = len(self.downloads_tree.get_children(other_folder))
+        
+        self.downloads_tree.item(video_folder, text=f"Videos ({video_count})")
+        self.downloads_tree.item(audio_folder, text=f"Audio ({audio_count})")
+        self.downloads_tree.item(other_folder, text=f"Other Files ({other_count})")
+        
+        # Remove empty folders
+        if video_count == 0:
+            self.downloads_tree.delete(video_folder)
+        if audio_count == 0:
+            self.downloads_tree.delete(audio_folder)
+        if other_count == 0:
+            self.downloads_tree.delete(other_folder)
+        
+        self.log(f"Downloads list refreshed with {len(all_files_found)} files", "DEBUG")
 
     def on_download_selected(self, event):
         """Handle when a download is selected in the downloads list"""
