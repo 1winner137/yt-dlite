@@ -1,5 +1,8 @@
 #GUI
-yt-liteg.py - use pyinstaller --onefile --windowed --clean --strip .\youtube.py - windows
+pyinstaller --onefile --windowed --clean --strip .\yt-liteg.py - windows
+pyinstaller --onefile --windowed --clean --name yt-liteg ./yt-liteg.py - unix/debian
+you can add --icon=myicon.ico if you have one
 
 #Non-GUI
-yt-lite.py - use pyinstaller --onefile  --clean --strip .\test.py - windows
+pyinstaller --onefile  --clean --strip .\yt-lite.py - windows
+pyinstaller --onefile  --clean --strip --name yt-liteg ./yt-lite.py - unix/debian
