@@ -246,7 +246,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="""
         -----------------------------------------------------------------------------
-        Video & Audio Downloader using yt-dlp
+        Video & Audio Downloader
         Developed by Winner_Nova.
         -----------------------------------------------------------------------------
         """,
