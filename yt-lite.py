@@ -277,7 +277,7 @@ def main():
     parser.add_argument('--format', help='Specify format for video or audio (e.g., mp4, webm, mp3)')
     parser.add_argument('--output', help='Specify custom output directory')
     parser.add_argument('--list-formats', help='List available formats for the given YouTube URL')
-    parser.add_argument('--gui', action='store_true', help='Launch yt-liteg.py or some.exe which are GUI mode')
+    parser.add_argument('--gui', action='store_true', help='Launch yt-liteg.py or yt-liteg.exe which are GUI mode')
     parser.add_argument('--resume', action='store_true', help='Resume partially downloaded files')
     parser.add_argument('--help', action='store_true', help='Show this help message')
     parser.add_argument('urls', nargs='*', help='URLs to download')
