@@ -230,7 +230,8 @@ def main():
         # Try executable only if Python script failed
         if not gui_launched:
             try:
-                result = subprocess.run(["yt-liteg.exe"], check=True)
+                #result = subprocess.run(["./yt-liteg"], check=True) - this works for linux/ubuntu/macos so uncheck it
+                result = subprocess.run(["yt-liteg.exe"], check=True) # you can comment this if your on debian,and uncomment prviuos line
                 if result.returncode == 0:
                     print("GUI executable launched successfully")
                     gui_launched = True
