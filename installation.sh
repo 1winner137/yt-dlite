@@ -46,16 +46,26 @@ install_requirements() {
         pip3 install --user argparse yt-dlp || {
             echo "Failed to install Python packages with pip3. Trying pip..."
             pip install --user argparse yt-dlp || {
-                echo -e "${RED}Failed to install Python packages. Please make sure pip is installed.${NC}"
-                exit 1
+                echo "Failed to install with regular pip. Trying with --break-system-packages..."
+                pip3 install --user --break-system-packages argparse yt-dlp || {
+                    pip install --user --break-system-packages argparse yt-dlp || {
+                        echo -e "${RED}Failed to install Python packages. Please make sure pip is installed.${NC}"
+                        exit 1
+                    }
+                }
             }
         }
     else
         pip3 install argparse yt-dlp || {
             echo "Failed to install Python packages with pip3. Trying pip..."
             pip install argparse yt-dlp || {
-                echo -e "${RED}Failed to install Python packages. Please make sure pip is installed.${NC}"
-                exit 1
+                echo "Failed to install with regular pip. Trying with --break-system-packages..."
+                pip3 install --break-system-packages argparse yt-dlp || {
+                    pip install --break-system-packages argparse yt-dlp || {
+                        echo -e "${RED}Failed to install Python packages. Please make sure pip is installed.${NC}"
+                        exit 1
+                    }
+                }
             }
         }
     fi
