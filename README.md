@@ -29,13 +29,11 @@ git clone https://github.com/1winner137/yt-lite.git
 cd yt-lite
 
 # Install dependencies
-For Non-Windows
+# For Non-Windows
 chmod +x ./installation.sh
 
-For windows
+# For windows
 Double click - installation.bat
-OR
-pip install -r requirements.txt
 
 # Install FFmpeg (platform specific)
 # Windows: Download from https://ffmpeg.org/download.html and add to PATH
