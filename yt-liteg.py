@@ -8,11 +8,12 @@ import subprocess
 import platform
 import datetime
 import functools
-
+import webbrowser
+from misc import PlaylistHandler
 class YouTubeDownloaderGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Yt-lite Downloader")
+        self.root.title("Yt-dlite Downloader")
         self.root.geometry("850x600")
         self.root.resizable(True, True)
         self.root.minsize(800, 550)
@@ -69,6 +70,7 @@ class YouTubeDownloaderGUI:
         # Logging system
         self.log_level = "INFO"  # Can be INFO, DEBUG, or ERROR
         self.log("Application started", "INFO")
+        
     
     def setup_theme(self, dark_mode=False):
         """Configure application theme based on mode"""
@@ -340,9 +342,15 @@ class YouTubeDownloaderGUI:
         self.save_path_entry = ttk.Entry(download_frame, font=("Helvetica", 9))
         self.save_path_entry.grid(row=0, column=1, padx=5, sticky=tk.EW)
         
-        # Set default save path to Downloads folder
+        # Set default save path to Downloads/yt-dlite folder
         downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
-        self.save_path_entry.insert(0, downloads_path)        
+        yt_dlite_path = os.path.join(downloads_path, "yt-dlite")
+        
+        # Create the yt-dlite folder inside Downloads if it doesn't exist
+        if not os.path.exists(yt_dlite_path):
+            os.makedirs(yt_dlite_path)
+        
+        self.save_path_entry.insert(0, yt_dlite_path)
         browse_button = ttk.Button(download_frame, text="Browse", command=self.browse_save_location)
         browse_button.grid(row=0, column=2, padx=5)
         
@@ -464,7 +472,7 @@ class YouTubeDownloaderGUI:
         # File info
         self.preview_info_var = tk.StringVar(value="Select a file to preview")
         ttk.Label(preview_frame, textvariable=self.preview_info_var, wraplength=300).pack(pady=10)
-        
+                
         # Bottom section - Project info
         info_frame = ttk.LabelFrame(vertical_paned, text="Project Information")
         vertical_paned.add(info_frame, weight=30)
@@ -477,6 +485,7 @@ class YouTubeDownloaderGUI:
         ttk.Label(info_content_frame, text="updates & issues:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         github_link = ttk.Label(info_content_frame, text="https://github.com/1winner137/yt-lite", foreground="blue", cursor="hand2")
         github_link.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
+        github_link.bind("<Button-1>", lambda e: open_url("https://github.com/1winner137/yt-lite"))
 
         ttk.Label(info_content_frame, text="Contact:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
         contact_info = ttk.Label(info_content_frame, text="1winner4win@proton.me", foreground="blue")
@@ -486,7 +495,7 @@ class YouTubeDownloaderGUI:
         ttk.Label(info_content_frame, text="winner_nova").grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
 
         ttk.Label(info_content_frame, text="Version:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Label(info_content_frame, text="yt-lite v1.0").grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(info_content_frame, text="yt-dlite v1.0").grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
 
         ttk.Label(info_content_frame, text="Notes:").grid(row=4, column=0, sticky=tk.NW, padx=5, pady=2)
         notes_text = "yt-dlp errors can be ignored by restarting app or fetching information"
@@ -500,17 +509,36 @@ class YouTubeDownloaderGUI:
         about_label = ttk.Label(about_frame, text=about_text, wraplength=350, justify=tk.LEFT)
         about_label.pack(fill=tk.X, expand=True)
 
+        # Define functions at the module level, not inside the class method
+        def copy_to_clipboard(text):
+            root.clipboard_clear()
+            root.clipboard_append(text)
+            messagebox.showinfo("Copied", f"{text} copied to clipboard!")
+
+        def open_url(url):
+            import webbrowser
+            webbrowser.open(url)
+
         # Full-width donate section
         donate_frame = ttk.Frame(info_content_frame)
         donate_frame.grid(row=6, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)
-        donate_text = "Consider donating this is just demo: BTC: 1A2b3C4d5E6f7G8h9I0j, PayPal: donate@yt-lite.dev"
+        donate_text = "Consider donating:"
         donate_label = ttk.Label(donate_frame, text=donate_text, wraplength=350, justify=tk.LEFT)
-        donate_label.pack(fill=tk.X, expand=True)
+        donate_label.pack(fill=tk.X)
 
-        github_link.bind("<Button-1>", lambda e: self.open_url("https://github.com/1winner137/yt-lite")) #Enable link clicking    #Open by using default browser
-    def open_url(self, url):
-        import webbrowser
-        webbrowser.open(url)
+        # Create clickable links
+        btc_link = ttk.Label(donate_frame, text="BTC: bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h", foreground="blue", cursor="hand2")
+        btc_link.pack(fill=tk.X)
+        btc_link.bind("<Button-1>", lambda e: copy_to_clipboard("bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h"))
+
+        paypal_link = ttk.Label(donate_frame, text="PayPal: donate@yt-lite.dev", foreground="blue", cursor="hand2")
+        paypal_link.pack(fill=tk.X)
+        paypal_link.bind("<Button-1>", lambda e: open_url("mailto:donate@yt-lite.dev"))
+
+        # Just one donation GitHub link
+        donate_github_link = ttk.Label(donate_frame, text="Visit our donation page", foreground="blue", cursor="hand2")
+        donate_github_link.pack(fill=tk.X)
+        donate_github_link.bind("<Button-1>", lambda e: open_url("https://github.com/kmrk/donate"))
     #Show context mnu on right click    
     def show_context_menu(self, event):
         item = self.downloads_tree.identify_row(event.y)
