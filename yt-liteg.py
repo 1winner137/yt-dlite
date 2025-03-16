@@ -262,20 +262,15 @@ class YouTubeDownloaderGUI:
         self.video_duration_var = tk.StringVar(value="")
         self.video_channel_var = tk.StringVar(value="")
 
-        # Add subtitle option with a single radio button
+        # Add subtitle option not yet programmed
         subtitle_frame = ttk.Frame(info_grid)
         subtitle_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=5)
-
-        # Radio button variable
         self.subtitle_var = tk.BooleanVar(value=False)
-
-        # Radio button for subtitles which are not supported hah!!
         subtitle_label = ttk.Label(subtitle_frame, text="Subtitles:")
         subtitle_label.pack(side=tk.LEFT, padx=(0, 5))
-
         subtitle_radio = ttk.Checkbutton(subtitle_frame, variable=self.subtitle_var)
         subtitle_radio.pack(side=tk.LEFT)
-        
+        #video information
         ttk.Label(info_grid, text="Title:", font=("Helvetica", 9, "bold")).grid(row=0, column=0, sticky=tk.W, padx=3, pady=1)
         ttk.Label(info_grid, textvariable=self.video_title_var, wraplength=500).grid(row=0, column=1, sticky=tk.W, padx=3, pady=1)
         
@@ -709,7 +704,7 @@ class YouTubeDownloaderGUI:
                 # Check if URL is a playlist
                 import misc
                 if misc.is_playlist(url):
-                    self.log("Playlist detected, handling with playlist processor", "INFO")
+                    self.log("Playlist detected, handling with playlist processor! sorry playlist they will be downloaded without showing the bar just check your folder you will see new songs", "INFO")
                     # Process playlist and get user format selection
                     playlist_handler = misc.process_playlist_url(self.root, url, self.log)
                     
@@ -727,7 +722,8 @@ class YouTubeDownloaderGUI:
                     
                     # Update UI to show playlist is ready
                     self.root.after(0, lambda: self.status_label.config(
-                        text=f"Playlist ready: {len(self.playlist_items)} videos"))
+                        #text=f"Playlist ready: {len(self.playlist_items)} videos"))
+                        text=f"Playlist downloading check folder for new stuff,i can't hanlde progress for now but i will fix it"))
                     self.root.after(0, lambda: self.set_loading_state(False))
                 else:
                     # Handle single video as normal
@@ -1841,4 +1837,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = YouTubeDownloaderGUI(root)
     root.mainloop()
-    #Thanks
