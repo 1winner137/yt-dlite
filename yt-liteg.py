@@ -248,19 +248,33 @@ class YouTubeDownloaderGUI:
         # Video info section.
         info_frame = ttk.LabelFrame(main_frame, text="Video Information")
         info_frame.pack(fill=tk.X, pady=1, ipady=5)
-        
+
         # The container to hold info and thumbnail pic side by side.
         container = ttk.Frame(info_frame)
         container.pack(fill=tk.BOTH, expand=True, padx=10, pady=1)
-        
+
         # Left side - Video info
         info_grid = ttk.Frame(container)
         info_grid.columnconfigure(1, weight=1)
         info_grid.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+
         self.video_title_var = tk.StringVar(value="")
         self.video_duration_var = tk.StringVar(value="")
         self.video_channel_var = tk.StringVar(value="")
+
+        # Add subtitle option with a single radio button
+        subtitle_frame = ttk.Frame(info_grid)
+        subtitle_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=5)
+
+        # Radio button variable
+        self.subtitle_var = tk.BooleanVar(value=False)
+
+        # Radio button for subtitles which are not supported hah!!
+        subtitle_label = ttk.Label(subtitle_frame, text="Subtitles:")
+        subtitle_label.pack(side=tk.LEFT, padx=(0, 5))
+
+        subtitle_radio = ttk.Checkbutton(subtitle_frame, variable=self.subtitle_var)
+        subtitle_radio.pack(side=tk.LEFT)
         
         ttk.Label(info_grid, text="Title:", font=("Helvetica", 9, "bold")).grid(row=0, column=0, sticky=tk.W, padx=3, pady=1)
         ttk.Label(info_grid, textvariable=self.video_title_var, wraplength=500).grid(row=0, column=1, sticky=tk.W, padx=3, pady=1)
@@ -1827,3 +1841,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = YouTubeDownloaderGUI(root)
     root.mainloop()
+    #Thanks
