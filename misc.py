@@ -1,4 +1,3 @@
-# Import required libraries
 import tkinter as tk
 from tkinter import ttk, messagebox
 import yt_dlp
@@ -6,14 +5,11 @@ import threading
 import time
 import os
 
-# Function to determine if URL is a playlist
+# Function to determine if URL is a playlist and process
 def is_playlist(url):
-    # Check if URL contains playlist indicators
     return '&list=' in url or '?list=' in url or '/playlist?' in url
 
-# Function to process playlist URL and show format selection dialog
 def process_playlist_url(root, url, log_func=None):
-    # Create and return a playlist handler instance
     handler = PlaylistHandler(root, url, log_func)
     handler.fetch_playlist_info()
     if handler.playlist_info:
@@ -24,7 +20,6 @@ def process_playlist_url(root, url, log_func=None):
 # Class to handle playlist operations
 class PlaylistHandler:
     def __init__(self, root, url, parent=None, log_func=None):
-        # Initialize with root window, URL and logging function
         self.root = root
         self.url = url
         self.log = log_func if log_func else lambda msg, level: None
@@ -38,14 +33,11 @@ class PlaylistHandler:
         self.parent = parent
         
     def get_output_path(self):
-        """Get output path from parent or use default"""
-        # If we have a parent with save_path_entry, use that
         if self.parent and hasattr(self.parent, 'save_path_entry'):
             output_path = self.parent.save_path_entry.get()
             if output_path:
                 return output_path
                 
-        # Otherwise use default path
         downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
         output_path = os.path.join(downloads_path, "yt-dlite")
         
@@ -65,11 +57,9 @@ class PlaylistHandler:
         }
         
         try:
-            # Extract playlist information
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 self.playlist_info = ydl.extract_info(self.url, download=False)
-                
-                # Process playlist entries
+
                 if self.playlist_info and 'entries' in self.playlist_info:
                     self.videos = self.playlist_info['entries']
                     self.log(f"Found {len(self.videos)} videos in playlist", "INFO")
@@ -82,17 +72,15 @@ class PlaylistHandler:
             messagebox.showerror("Error", f"Failed to fetch playlist info: {str(e)}")
             return False
         
-        # Show dialog for format selection
+        # Show dialog for format selection and create pop up, u can modify to make it more appealing
     def show_format_selection_dialog(self):
-        # Create a popup dialog to select format type and format
         self.format_dialog = tk.Toplevel(self.root)
         self.format_dialog.title("Playlist Download Options")
-        self.format_dialog.geometry("500x450")  # Made slightly taller for the new control
+        self.format_dialog.geometry("500x450")
         self.format_dialog.resizable(False, False)
         self.format_dialog.transient(self.root)
         self.format_dialog.grab_set()
         
-        # Frame for content
         main_frame = ttk.Frame(self.format_dialog, padding=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -108,63 +96,49 @@ class PlaylistHandler:
         limit_frame = ttk.Frame(main_frame)
         limit_frame.pack(fill=tk.X, pady=(0, 10), anchor=tk.W)
         
-        # Radio buttons for all videos or limited number
+        # Radio buttons for all videos selections
         self.limit_type_var = tk.StringVar(value="all")
         ttk.Radiobutton(limit_frame, text="All videos", variable=self.limit_type_var, 
                     value="all", command=self.toggle_limit_entry).pack(side=tk.LEFT, padx=(0, 10))
         ttk.Radiobutton(limit_frame, text="First", variable=self.limit_type_var,
                     value="limited", command=self.toggle_limit_entry).pack(side=tk.LEFT, padx=(0, 5))
         
-        # Spinbox for selecting number of videos
         self.limit_var = tk.StringVar(value="10")
         self.limit_spinbox = ttk.Spinbox(limit_frame, from_=1, to=min(100, len(self.videos)), 
                                         width=5, textvariable=self.limit_var, state="disabled")
         self.limit_spinbox.pack(side=tk.LEFT, padx=(0, 5))
         ttk.Label(limit_frame, text="videos").pack(side=tk.LEFT)
-        
-        # Format type selection
+
         ttk.Label(main_frame, text="Select Download Type:", font=('Arial', 10, 'bold')).pack(anchor=tk.W, pady=(10, 5))
         
-        # Radio buttons for format type - Set default to audio
+        # Radio buttons for format type - Set default to audio u can change if u wish
         self.format_type_var = tk.StringVar(value="audio")
         ttk.Radiobutton(main_frame, text="Video", variable=self.format_type_var, value="video", command=self.on_format_type_selected).pack(anchor=tk.W, padx=20)
-        ttk.Radiobutton(main_frame, text="Audio Only", variable=self.format_type_var, value="audio", command=self.on_format_type_selected).pack(anchor=tk.W, padx=20, pady=(0, 10))
-        
-        # Format selection
+        ttk.Radiobutton(main_frame, text="Audio Only", variable=self.format_type_var, value="audio", command=self.on_format_type_selected).pack(anchor=tk.W, padx=20, pady=(0, 10))        
         ttk.Label(main_frame, text="Select Format:", font=('Arial', 10, 'bold')).pack(anchor=tk.W, pady=(10, 5))
         
         # Format dropdown
         self.format_var = tk.StringVar()
         self.format_dropdown = ttk.Combobox(main_frame, textvariable=self.format_var, state="readonly", width=40)
-        self.format_dropdown.pack(anchor=tk.W, pady=(0, 20))
-        
+        self.format_dropdown.pack(anchor=tk.W, pady=(0, 20))        
         # Initialize format dropdown values
-        self.on_format_type_selected()
-        
+        self.on_format_type_selected()        
         # Size estimation
         self.size_label = ttk.Label(main_frame, text="Estimated Size: Calculating...")
-        self.size_label.pack(anchor=tk.W, pady=(10, 20))
-        
-        # Button frame
+        self.size_label.pack(anchor=tk.W, pady=(10, 20))        
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=(20, 0))
-        
-        # OK and Cancel buttons
+        #Download and cancel button
         ttk.Button(button_frame, text="Cancel", command=self.on_cancel_button).pack(side=tk.RIGHT, padx=5)
-        ttk.Button(button_frame, text="Download Now", command=self.on_download_button).pack(side=tk.RIGHT, padx=5)
-        
-        # Start size calculation in a controlled way
+        ttk.Button(button_frame, text="Download Now", command=self.on_download_button).pack(side=tk.RIGHT, padx=5)        
+        # Start size calculation in a controlled way, to keeep simple
         self.size_calculation_thread = threading.Thread(target=self.calculate_playlist_size, daemon=True)
-        self.size_calculation_thread.start()
-        
-        # Handle dialog close event
-        self.format_dialog.protocol("WM_DELETE_WINDOW", self.on_cancel_button)
-        
-        # Wait for user input
+        self.size_calculation_thread.start()        
+        self.format_dialog.protocol("WM_DELETE_WINDOW", self.on_cancel_button)        
+        # Wait for user input, even if he\she wish to do tommorow
         self.root.wait_window(self.format_dialog)
         return self.selected_format is not None
 
-    # Method to toggle the limit spinbox state
     def toggle_limit_entry(self):
         if self.limit_type_var.get() == "limited":
             self.limit_spinbox.config(state="normal")
@@ -197,7 +171,7 @@ class PlaylistHandler:
         
         # Update size estimation if the dialog is still open
         if hasattr(self, 'size_label') and self.size_label.winfo_exists():
-            # Cancel previous thread if running
+            # Cancel previous thread incase it stil running
             if self.size_calculation_thread and self.size_calculation_thread.is_alive():
                 self.fetch_cancelled = True
                 self.size_calculation_thread.join(0.1)  # Give it a moment to finish
@@ -207,34 +181,19 @@ class PlaylistHandler:
             self.size_calculation_thread = threading.Thread(target=self.calculate_playlist_size, daemon=True)
             self.size_calculation_thread.start()
         
-    # Handle OK button click
-    def on_ok_button(self):
-        # Store selected options and close dialog
-        format_display = self.format_var.get()
-        self.selected_format = self.format_values.get(format_display)
-        self.selected_format_type = self.format_type_var.get()
-        self.fetch_cancelled = True  # Stop any ongoing calculations
-        
-        # Close dialog
-        self.format_dialog.destroy()
-        
     # Handle Cancel button click
     def on_cancel_button(self):
-        # Clear selections and close dialog
         self.selected_format = None
         self.selected_format_type = None
-        self.fetch_cancelled = True  # Stop any ongoing calculations
-        
-        # Close dialog
-        self.format_dialog.destroy()
+        self.fetch_cancelled = True  # Stop any ongoing calculations        
+        self.format_dialog.destroy() # Close dialog
 
-    # Handle Download button click - Modified from on_ok_button
+    # Handle Download button click
     def on_download_button(self):
-        # Store selected options
+        # Storing selected options
         format_display = self.format_var.get()
         self.selected_format = self.format_values.get(format_display)
-        self.selected_format_type = self.format_type_var.get()
-        
+        self.selected_format_type = self.format_type_var.get()        
         # Get video limit selection
         if self.limit_type_var.get() == "limited":
             try:
@@ -245,34 +204,21 @@ class PlaylistHandler:
             self.video_limit = len(self.videos)  # All videos
         
         self.fetch_cancelled = True  # Stop any ongoing calculations
-        
-        # Close dialog
-        self.format_dialog.destroy()
-        
-        # Start download immediately
-        self.start_download()
+        self.format_dialog.destroy() # Close dialog
+        self.start_download() # Start download immediately
 
-    # New method to start the download process
     def start_download(self):
-        # Get output path from the save_path_entry
-        output_path = self.get_output_path()
-        
-        # If empty for some reason, set to Downloads/yt-dlite as fallback
+        output_path = self.get_output_path()        
+        # If empty for some reason, set to default application folder
         if not output_path:
             downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
             output_path = os.path.join(downloads_path, "yt-dlite")
-            
-            # Create the directory if it doesn't exist
-            if not os.path.exists(output_path):
+            if not os.path.exists(output_path): #Create directory if does not exist
                 os.makedirs(output_path)
         
-        # Rest of your download code here...
-        
         # Get download items with applied limit
-        items = self.get_download_items_with_limit()
-        
+        items = self.get_download_items_with_limit()        
         if items:
-            # Assuming your application has these callbacks defined
             try:
                 # Start the download with the items
                 download_items(
@@ -287,18 +233,16 @@ class PlaylistHandler:
                 self.log(f"Error starting download: {str(e)}", "ERROR")
                 messagebox.showerror("Error", f"Failed to start download: {str(e)}")
 
-    # Modified method to get download items with limit applied
+    # Another modified method
     def get_download_items_with_limit(self):
         # Return list of videos with selected format info, respecting the limit
         if not self.playlist_info or not self.selected_format:
             return []
-            
-        # Format items for download with the selected format
-        items = []
+        
+        items = []# Format items for download with the selected format
         
         # Apply the video limit
-        video_count = min(self.video_limit, len(self.videos)) if hasattr(self, 'video_limit') else len(self.videos)
-        
+        video_count = min(self.video_limit, len(self.videos)) if hasattr(self, 'video_limit') else len(self.videos)        
         for i, video in enumerate(self.videos):
             if i >= video_count:
                 break
@@ -311,7 +255,6 @@ class PlaylistHandler:
                     'type': self.selected_format_type
                 })
         return items
-
         
     # Get download items with format info
     def get_download_items(self):
@@ -352,7 +295,7 @@ class PlaylistHandler:
             if not format_display or self.fetch_cancelled:
                 return
                 
-            # Update label to show we're calculating
+            # Update label to show we're calculating and we not just quite chilling
             if hasattr(self, 'size_label') and self.size_label.winfo_exists():
                 self.size_label.config(text="Estimated Size: Calculating...")
             else:
@@ -370,29 +313,22 @@ class PlaylistHandler:
             
             # Check if calculation should be cancelled
             if self.fetch_cancelled:
-                return
-                
+                return                
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(video_url, download=False)
-                
-                # Check if calculation should be cancelled
                 if self.fetch_cancelled or not info:
-                    return
-                    
+                    return                    
                 # Get filesize from the selected format
                 filesize = 0
                 for fmt in info.get('formats', []):
                     if fmt.get('format_id') == info.get('format_id'):
                         filesize = fmt.get('filesize', 0)
-                        break
-                
-                # If we couldn't get the filesize from the format, try the general filesize
+                        break                
+                # If we fail lets try the general filesize
                 if not filesize:
-                    filesize = info.get('filesize', 0)
-                
-                # If we still don't have a filesize, use an estimation based on duration
+                    filesize = info.get('filesize', 0)                
+                # If we fail, we can use estimation based on duration
                 if not filesize and info.get('duration'):
-                    # Estimate based on format and duration
                     if format_type == "video":
                         if "720p" in format_display:
                             filesize = info.get('duration', 0) * 350000  # ~350KB/s for 720p
@@ -412,29 +348,25 @@ class PlaylistHandler:
                     self.size_label.config(text=f"Estimated Size: {format_size(total_size)}")
                     
         except Exception as e:
-            # Update label if it still exists
+            # Update label if it still exists, i mean if not canceled previusly
             if hasattr(self, 'size_label') and self.size_label.winfo_exists() and not self.fetch_cancelled:
                 self.size_label.config(text="Size: Estimation failed")
                 self.log(f"Size calculation error: {str(e)}", "ERROR")
-
-# Function to format file size in human-readable form
-##here
+###########here
 # Function to format file size in human-readable form
 def format_size(bytes_size):
-    # Convert bytes to KB, MB, GB as appropriate
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes_size < 1024.0:
             return f"{bytes_size:.2f} {unit}"
         bytes_size /= 1024.0
     return f"{bytes_size:.2f} TB"
 
-# Helper function to actually perform the download 
+# Helper function to perform the download process
 def download_item(item, output_path=None, progress_callback=None, log_func=None):
     # Set default output path if None is provided
     if output_path is None:
         downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
-        output_path = os.path.join(downloads_path, "yt-dlite")
-        
+        output_path = os.path.join(downloads_path, "yt-dlite")        
         # Create the directory if it doesn't exist
         if not os.path.exists(output_path):
             os.makedirs(output_path)
@@ -455,11 +387,11 @@ def download_item(item, output_path=None, progress_callback=None, log_func=None)
     
     # For audio downloads, ensure we're extracting and converting properly
     if item_type == 'audio':
-        # Parse the format string to extract options
+        # Parsig the format string to extract options
         format_parts = format_string.split(' --')
         format_selector = format_parts[0]
         
-        # Set up base options for audio download
+        # Setting up base options for audio downlod
         ydl_opts['format'] = format_selector
         ydl_opts['extract_audio'] = True
         
@@ -474,7 +406,7 @@ def download_item(item, output_path=None, progress_callback=None, log_func=None)
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'm4a',
-                'preferredquality': '0',  # Best quality
+                'preferredquality': '0',  # Best quality but if 5 low quality, hope u got meaning
             }]
         elif any('vorbis' in part for part in format_parts):
             ydl_opts['postprocessors'] = [{
