@@ -13,9 +13,9 @@
 - **Format Listing**: View all available quality options before downloading
 - **Custom Output**: Specify where to save your downloads
 - **Safe Filenames**: Automatic sanitization of filenames
-- **Dark and Light mode(GUI)**: Themes for better user experience
-- **PlayList Download(GUI)** : Custom number suggest or Entire playlist with easier
-- **Verbosity(GUI)** :  Supports ERROR, DEBUG, and INFO logging levels for better troubleshooting
+- **Dark and Light**: Themes for better user experience
+- **PlayList Download** : Custom number suggest or Entire playlist download with easier
+- **Verbosity** :  Supports ERROR, DEBUG, and INFO logging levels for better troubleshooting
 
 ## Installation
 
