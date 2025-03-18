@@ -1,8 +1,8 @@
-# YT-Lite
+# YT-Dlite
 
-**YT-Lite** is a lightweight, versatile video/audio downloader that offers both a clean GUI and powerful command-line interface. Built on top of yt-dlp with simplicity in mind, and they works similarly in many ways.
+**YT-Dlite** is a lightweight, versatile video/audio downloader that offers both a clean GUI and powerful command-line interface. Built on top of yt-dlp with simplicity in mind, and they works similarly in many ways.
 
-![YT-Lite Logo](https://github.com/1winner137/yt-lite/blob/main/.github/yt-dlp.svg)
+![YT-Dlite Logo](https://github.com/1winner137/yt-dlite/blob/main/.github/yt-dlp.svg)
 
 ## Features
 
@@ -25,8 +25,8 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/1winner137/yt-lite.git
-cd yt-lite
+git clone https://github.com/1winner137/yt-dlite.git
+cd yt-dlite
 
 # Install dependencies
 # For Non-Windows
@@ -49,11 +49,11 @@ Double click - installation.bat
 Launch the graphical interface with:
 
 ```bash
-python yt-lite.py --gui
+python yt-dlite.py --gui
 ```
 OR
 ```bash
-python yt-liteg.py
+python yt-dliteg.py
 ```
 
 The GUI provides a simple interface for:
@@ -66,26 +66,26 @@ The GUI provides a simple interface for:
 
 ### Command-Line Interface
 
-yt-lite offers a powerful CLI for quick downloads and automation:
+yt-dlite offers a powerful CLI for quick downloads and automation:
 
 ```bash
 # Download video (default: mp4)
-python yt-lite.py --video https://www.youtube.com/watch?v=example
+python yt-dlite.py --video https://www.youtube.com/watch?v=example
 
 # Download audio (default: mp3)
-python yt-lite.py --audio https://www.youtube.com/watch?v=example
+python yt-dlite.py --audio https://www.youtube.com/watch?v=example
 
 # Specify format
-python yt-lite.py --video https://www.youtube.com/watch?v=example --format webm
+python yt-dlite.py --video https://www.youtube.com/watch?v=example --format webm
 
 # Resume interrupted download
-python yt-lite.py --resume --video https://www.youtube.com/watch?v=example
+python yt-dlite.py --resume --video https://www.youtube.com/watch?v=example
 
 # List all available formats
-python yt-lite.py --list-formats https://www.youtube.com/watch?v=example
+python yt-dlite.py --list-formats https://www.youtube.com/watch?v=example
 
 # Specify output directory
-python yt-lite.py --video https://www.youtube.com/watch?v=example --output /path/to/save
+python yt-dlite.py --video https://www.youtube.com/watch?v=example --output /path/to/save
 ```
 
 ## Advanced Usage
@@ -95,17 +95,17 @@ python yt-lite.py --video https://www.youtube.com/watch?v=example --output /path
 List available formats:
 
 ```bash
-python yt-lite.py --list-formats https://www.youtube.com/watch?v=example
+python yt-dlite.py --list-formats https://www.youtube.com/watch?v=example
 ```
 
 This will display all available formats with their IDs, extensions, and resolutions, not limited to site.
 
 ### Resume Downloads
 
-yt-lite can continue partially downloaded files:
+yt-dlite can continue partially downloaded files:
 
 ```bash
-python yt-lite.py --resume --video https://www.youtube.com/watch?v=example
+python yt-dlite.py --resume --video https://www.youtube.com/watch?v=example
 ```
 
 ### Custom Output Directory
@@ -113,7 +113,7 @@ python yt-lite.py --resume --video https://www.youtube.com/watch?v=example
 Save downloads to a specific location:
 
 ```bash
-python yt-lite.py --video https://www.youtube.com/watch?v=example --output ~/Downloads
+python yt-dlite.py --video https://www.youtube.com/watch?v=example --output ~/Downloads
 ```
 
 ## Contributing
@@ -137,4 +137,4 @@ This project is licensed under the GNU GPLv3.0 License - see the LICENSE file fo
 
 ## Disclaimer
 
-This tool is for personal use only. Please respect copyright laws and the YouTube Terms of Service. yt-lite developers and contributors are not responsible for misuse of this software.
+This tool is for personal use only. Please respect copyright laws and the YouTube Terms of Service. yt-dlite developers and contributors are not responsible for misuse of this software.
