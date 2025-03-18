@@ -31,7 +31,7 @@ class PlaylistHandler:
         self.fetch_cancelled = False
         self.size_calculation_thread = None
         self.parent = parent
-        
+     #setting output directory   
     def get_output_path(self):
         if self.parent and hasattr(self.parent, 'save_path_entry'):
             output_path = self.parent.save_path_entry.get()
@@ -40,8 +40,6 @@ class PlaylistHandler:
                 
         downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
         output_path = os.path.join(downloads_path, "yt-dlite")
-        
-        # Create the directory if it doesn't exist
         if not os.path.exists(output_path):
             os.makedirs(output_path)
             
@@ -52,7 +50,7 @@ class PlaylistHandler:
         # Set up yt-dlp options for playlist info extraction
         ydl_opts = {
             'quiet': True,
-            'extract_flat': True,  # Don't download video info for each video
+            'extract_flat': True,  # Prevent download video info for each video
             'no_warnings': True,
         }
         
@@ -121,9 +119,8 @@ class PlaylistHandler:
         self.format_var = tk.StringVar()
         self.format_dropdown = ttk.Combobox(main_frame, textvariable=self.format_var, state="readonly", width=40)
         self.format_dropdown.pack(anchor=tk.W, pady=(0, 20))        
-        # Initialize format dropdown values
+        # Initialize format dropdown values & size estimation
         self.on_format_type_selected()        
-        # Size estimation
         self.size_label = ttk.Label(main_frame, text="Estimated Size: Calculating...")
         self.size_label.pack(anchor=tk.W, pady=(10, 20))        
         button_frame = ttk.Frame(main_frame)
@@ -166,7 +163,7 @@ class PlaylistHandler:
         self.format_dropdown['values'] = formats
         self.format_dropdown.current(0)
         
-        # Store format values mapping
+        # Store format values for mapping
         self.format_values = dict(zip(formats, format_values))
         
         # Update size estimation if the dialog is still open
@@ -206,7 +203,100 @@ class PlaylistHandler:
         self.fetch_cancelled = True  # Stop any ongoing calculations
         self.format_dialog.destroy() # Close dialog
         self.start_download() # Start download immediately
+############################This is start of block which deals with showing progress of each downloaded individual playlist
+    #So if you see it bothering edit from this point.
+    def show_progress_dialog(self, total_videos):
+        self.progress_window = tk.Toplevel(self.root)
+        self.progress_window.title("Download Progress")
+        self.progress_window.geometry("400x150")
+        
+        # Create frame for progress info
+        frame = ttk.Frame(self.progress_window, padding="10")
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Video info label (current video title)
+        self.video_label = ttk.Label(frame, text="")
+        self.video_label.pack(fill=tk.X)
+        
+        # Status label for percentage
+        self.status_label = ttk.Label(frame, text="Preparing download...")
+        self.status_label.pack(fill=tk.X)
+        
+        # Current file progress bar
+        self.current_progress_bar = ttk.Progressbar(frame, orient="horizontal", length=380, mode="determinate")
+        self.current_progress_bar.pack(fill=tk.X, pady=5)
+        
+        # Overall progress label
+        self.overall_label = ttk.Label(frame, text=f"Overall progress: 0/{total_videos}")
+        self.overall_label.pack(fill=tk.X)
+        
+        # Overall progress bar
+        self.overall_progress_bar = ttk.Progressbar(frame, orient="horizontal", length=380, mode="determinate")
+        self.overall_progress_bar.pack(fill=tk.X, pady=5)
+        
+        # Cancel button
+        cancel_btn = ttk.Button(frame, text="Cancel", command=self.cancel_download)
+        cancel_btn.pack()
+        
+        # Set up progress tracking variables
+        self.total_videos = total_videos
+        self.completed_videos = 0
+        self.download_cancelled = False
 
+    def update_download_progress(self, d):
+        # Skip update if download was cancelled
+        if hasattr(self, 'download_cancelled') and self.download_cancelled:
+            return
+        
+        # Check if progress window still exists
+        if not hasattr(self, 'progress_window') or not self.progress_window.winfo_exists():
+            return
+        
+        try:
+            # Get status from yt-dlp dictionary by hookig
+            status = d.get('status')
+            
+            if status == 'downloading':
+                # Update video info
+                filename = d.get('filename', '').split('/')[-1] if d.get('filename') else 'Unknown'
+                self.video_label['text'] = f"Downloading: {filename}"
+                
+                # Update percentage
+                if d.get('downloaded_bytes') is not None and d.get('total_bytes') is not None:
+                    percent = (d['downloaded_bytes'] / d['total_bytes']) * 100
+                    speed = d.get('speed', 0)
+                    speed_str = f"{speed/1024/1024:.2f} MB/s" if speed else "Unknown speed"
+                    eta = d.get('eta', 0)
+                    eta_str = f"{eta} sec" if eta else "Unknown"
+                    
+                    self.status_label['text'] = f"{percent:.1f}% | {speed_str} | ETA: {eta_str}"
+                    self.current_progress_bar['value'] = percent
+                elif d.get('downloaded_bytes') is not None and d.get('total_bytes_estimate') is not None:
+                    percent = (d['downloaded_bytes'] / d['total_bytes_estimate']) * 100
+                    self.status_label['text'] = f"{percent:.1f}% (estimated)"
+                    self.current_progress_bar['value'] = percent
+            
+            elif status == 'finished':
+                # Update for completed video
+                self.completed_videos += 1
+                overall_progress = (self.completed_videos / self.total_videos) * 100
+                self.overall_label['text'] = f"Overall progress: {self.completed_videos}/{self.total_videos}"
+                self.overall_progress_bar['value'] = overall_progress
+                self.current_progress_bar['value'] = 100
+                self.status_label['text'] = "Completed current file"
+            
+            # Force UI update and handling error quitely to avoid breaking operations
+            self.progress_window.update()
+        except Exception as e:
+            self.log(f"Error updating progress: {str(e)}", "ERROR")
+
+    def cancel_download(self):
+        self.download_cancelled = True
+        if hasattr(self.root, 'cancel_download'):
+            self.root.cancel_download()
+        self.progress_window.destroy()
+
+    # Download and update progress using hook
     def start_download(self):
         output_path = self.get_output_path()        
         # If empty for some reason, set to default application folder
@@ -217,25 +307,72 @@ class PlaylistHandler:
                 os.makedirs(output_path)
         
         # Get download items with applied limit
-        items = self.get_download_items_with_limit()        
+        items = self.get_download_items_with_limit()
         if items:
             try:
-                # Start the download with the items
-                download_items(
-                    items, 
-                    output_path=output_path,
-                    progress_callback=self.root.update_progress if hasattr(self.root, 'update_progress') else None,
-                    completion_callback=self.root.on_download_complete if hasattr(self.root, 'on_download_complete') else None,
-                    log_func=self.log
+                # Show progress dialog
+                self.show_progress_dialog(len(items))
+                
+                # Start download in a thread to keep UI responsive
+                download_thread = threading.Thread(
+                    target=self._download_thread,
+                    args=(items, output_path)
                 )
+                download_thread.daemon = True
+                download_thread.start()
+                
                 self.log(f"Started downloading {len(items)} videos from playlist", "INFO")
             except Exception as e:
                 self.log(f"Error starting download: {str(e)}", "ERROR")
                 messagebox.showerror("Error", f"Failed to start download: {str(e)}")
 
-    # Another modified method
+    def _download_thread(self, items, output_path):
+        for i, item in enumerate(items):
+            if hasattr(self, 'download_cancelled') and self.download_cancelled:
+                break
+                
+            self.log(f"Downloading ({i+1}/{len(items)}): {item['title']}", "INFO")
+            
+            try:
+                # Configure yt-dlp options
+                ydl_opts = {
+                    'format': item['format'],
+                    'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+                    'progress_hooks': [self.update_download_progress],
+                    'quiet': True,
+                    'no_warnings': True
+                }
+                
+                # Download the video
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([item['url']])
+                    
+            except Exception as e:
+                self.log(f"Error downloading {item['title']}: {str(e)}", "ERROR")
+        
+        # On completion, update UI
+        if not hasattr(self, 'download_cancelled') or not self.download_cancelled:
+            self.on_download_complete()
+
+    def on_download_complete(self):
+        if hasattr(self, 'progress_window') and self.progress_window.winfo_exists():
+            self.status_label["text"] = "All downloads completed!"
+            self.current_progress_bar["value"] = 100
+            self.overall_progress_bar["value"] = 100
+            
+            # Change cancel button to close the pop up
+            for widget in self.progress_window.winfo_children():
+                if isinstance(widget, ttk.Frame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, ttk.Button):
+                            child.configure(text="Close", command=self.progress_window.destroy)
+        
+        # Call parent's completion handler
+        if hasattr(self.root, 'on_download_complete'):
+            self.root.on_download_complete()
+
+    #Download according to selected to selected format and download playlist limit
     def get_download_items_with_limit(self):
-        # Return list of videos with selected format info, respecting the limit
         if not self.playlist_info or not self.selected_format:
             return []
         
@@ -256,7 +393,6 @@ class PlaylistHandler:
                 })
         return items
         
-    # Get download items with format info
     def get_download_items(self):
         # Return list of videos with selected format info
         if not self.playlist_info or not self.selected_format:
@@ -273,7 +409,7 @@ class PlaylistHandler:
                     'type': self.selected_format_type
                 })
         return items
-        
+######################End of the block
     # Calculate approximate size of playlist with selected format
     def calculate_playlist_size(self):
         if not hasattr(self, 'size_label') or not self.playlist_info or not self.videos:
@@ -352,7 +488,7 @@ class PlaylistHandler:
             if hasattr(self, 'size_label') and self.size_label.winfo_exists() and not self.fetch_cancelled:
                 self.size_label.config(text="Size: Estimation failed")
                 self.log(f"Size calculation error: {str(e)}", "ERROR")
-###########here
+###########im just confused,so i take a nap
 # Function to format file size in human-readable form
 def format_size(bytes_size):
     for unit in ['B', 'KB', 'MB', 'GB']:
@@ -470,7 +606,7 @@ def download_item(item, output_path=None, progress_callback=None, log_func=None)
             'error': error_msg
         }
 
-# Function to handle downloading a list of items
+# Function to handle downloading a list of items, this is incomplete but it send update to the main GUI,like playlist it supposed to show download progress etc
 def download_items(items, output_path=".", progress_callback=None, completion_callback=None, log_func=None):
     # Create a thread to handle downloads
     def download_thread():
@@ -496,5 +632,4 @@ def download_items(items, output_path=".", progress_callback=None, completion_ca
     # Start the download thread
     thread = threading.Thread(target=download_thread, daemon=True)
     thread.start()
-    
     return thread
