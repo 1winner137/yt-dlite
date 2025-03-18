@@ -14,8 +14,8 @@
 - **Custom Output**: Specify where to save your downloads
 - **Safe Filenames**: Automatic sanitization of filenames
 - **Dark and Light**: Themes for better user experience
-- **PlayList Download** : Custom number suggest or Entire playlist download with easier
-- **Verbosity** :  Supports ERROR, DEBUG, and INFO logging levels for better troubleshooting
+- **PlayList Download** : Custom number suggest or Entire playlist download with easier - GUI
+- **Verbosity** :  Supports ERROR, DEBUG, and INFO logging levels for better troubleshooting - GUI
 
 ## Installation
 
