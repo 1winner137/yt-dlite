@@ -8,7 +8,7 @@ import re
 def sanitize_filename(filename):
     #Sanitize filename to remove or replace problematic characters
     #like emojis,symbols, unicode  and keep alphanumeric characters, spaces, dots, hyphens, and underscores
-    # This is to enable deleting after combining files, when processing downloading, similar to when passing -k in yt-dlp, stuff like that
+    # This is to enable deleting after combining files, when processing downloading, similar to when passing -k in yt-dlp, stuff like that.
     
     sanitized = re.sub(r'[^\w\-_\. ]', '_', filename)
     
