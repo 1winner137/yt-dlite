@@ -231,6 +231,7 @@ def main():
         if not gui_launched:
             try:
                 result = subprocess.run(["yt-dlite.exe"], check=True)
+                #result = subprocess.run(["./yt-dlite"], check=True) - uncheck this if you want to compile for linux
                 if result.returncode == 0:
                     print("GUI executable launched successfully")
                     gui_launched = True
