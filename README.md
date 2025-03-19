@@ -133,6 +133,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the GNU GPLv3.0 License - see the LICENSE file for details.
 
+## Donation
+Conside donating
+BTC : bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h
+
 ## Acknowledgments
 
 - Built on the excellent [yt-dlp](https://github.com/yt-dlp/yt-dlp) library
