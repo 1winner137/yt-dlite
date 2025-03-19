@@ -492,7 +492,7 @@ class YouTubeDownloaderGUI:
 
         # Project info with normal fields
         ttk.Label(info_content_frame, text="updates & issues:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        github_link = ttk.Label(info_content_frame, text="https://yt-dlp/visit", foreground="blue", cursor="hand2")
+        github_link = ttk.Label(info_content_frame, text="https://yt-dlite/visit", foreground="blue", cursor="hand2")
         github_link.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
         github_link.bind("<Button-1>", lambda e: open_url("https://github.com/1winner137/yt-dlite/releases"))
 
