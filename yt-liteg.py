@@ -492,9 +492,9 @@ class YouTubeDownloaderGUI:
 
         # Project info with normal fields
         ttk.Label(info_content_frame, text="updates & issues:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
-        github_link = ttk.Label(info_content_frame, text="https://github.com/1winner137/yt-lite", foreground="blue", cursor="hand2")
+        github_link = ttk.Label(info_content_frame, text="https://yt-dlp/visit", foreground="blue", cursor="hand2")
         github_link.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
-        github_link.bind("<Button-1>", lambda e: open_url("https://github.com/1winner137/yt-lite"))
+        github_link.bind("<Button-1>", lambda e: open_url("https://github.com/1winner137/yt-dlite/releases"))
 
         ttk.Label(info_content_frame, text="Contact:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
         contact_info = ttk.Label(info_content_frame, text="1winner4win@proton.me", foreground="blue")
@@ -507,7 +507,7 @@ class YouTubeDownloaderGUI:
         ttk.Label(info_content_frame, text="yt-dlite v1.0").grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
 
         ttk.Label(info_content_frame, text="Notes:").grid(row=4, column=0, sticky=tk.NW, padx=5, pady=2)
-        notes_text = "yt-dlp errors can be ignored by restarting app or fetching information"
+        notes_text = "yt-dlp errors can be ignored by restarting app or fetching information again."
         notes_label = ttk.Label(info_content_frame, text=notes_text, wraplength=250)
         notes_label.grid(row=4, column=1, sticky=tk.W, padx=5, pady=2)
 
@@ -536,18 +536,18 @@ class YouTubeDownloaderGUI:
         donate_label.pack(fill=tk.X)
 
         # Create clickable links
-        btc_link = ttk.Label(donate_frame, text="BTC: bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h", foreground="blue", cursor="hand2")
+        btc_link = ttk.Label(donate_frame, text="BTC: bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h", foreground="green", cursor="hand2")
         btc_link.pack(fill=tk.X)
         btc_link.bind("<Button-1>", lambda e: copy_to_clipboard("bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h"))
 
-        paypal_link = ttk.Label(donate_frame, text="PayPal: donate@yt-lite.dev", foreground="blue", cursor="hand2")
+        paypal_link = ttk.Label(donate_frame, text="PayPal: winnernova7@gmail.com", foreground="green", cursor="hand2")
         paypal_link.pack(fill=tk.X)
-        paypal_link.bind("<Button-1>", lambda e: open_url("mailto:donate@yt-lite.dev"))
+        paypal_link.bind("<Button-1>", lambda e: open_url("mailto:winnernova7@gmail.com"))
 
         # Just one donation GitHub link
-        donate_github_link = ttk.Label(donate_frame, text="Visit our donation page", foreground="blue", cursor="hand2")
-        donate_github_link.pack(fill=tk.X)
-        donate_github_link.bind("<Button-1>", lambda e: open_url("https://github.com/kmrk/donate"))
+        donate_github_link = ttk.Label(donate_frame, text="Visit donation page", foreground="green", cursor="hand2")
+        donate_github_link.pack(fill=tk.X) #you can put patreon
+        donate_github_link.bind("<Button-1>", lambda e: open_url("https://github.com/1winner137/yt-dlite/blob/main/README.md#donation"))
     #Show context mnu on right click    
     def show_context_menu(self, event):
         item = self.downloads_tree.identify_row(event.y)
@@ -704,7 +704,7 @@ class YouTubeDownloaderGUI:
                 # Check if URL is a playlist
                 import misc
                 if misc.is_playlist(url):
-                    self.log("Playlist detected, handling with playlist processor! sorry playlist they will be downloaded without showing the bar just check your folder you will see new songs", "INFO")
+                    self.log("Playlist detected, handling with playlist processor! wait for popup", "INFO")
                     # Process playlist and get user format selection
                     playlist_handler = misc.process_playlist_url(self.root, url, self.log)
                     
@@ -723,7 +723,7 @@ class YouTubeDownloaderGUI:
                     # Update UI to show playlist is ready
                     self.root.after(0, lambda: self.status_label.config(
                         #text=f"Playlist ready: {len(self.playlist_items)} videos"))
-                        text=f"Playlist downloading check folder for new stuff,i can't hanlde progress for now but i will fix it"))
+                        text=f"Playlist downloading in progress"))
                     self.root.after(0, lambda: self.set_loading_state(False))
                 else:
                     # Handle single video as normal
