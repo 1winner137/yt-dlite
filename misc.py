@@ -147,17 +147,59 @@ class PlaylistHandler:
         
         # Update available formats based on type selection
         if format_type == "video":
-            formats = ["mp4 (720p)", "mp4 (360p)", "webm (720p)", "webm (360p)"]
-            format_values = ["bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
-                            "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best",
-                            "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best",
-                            "bestvideo[ext=webm][height<=360]+bestaudio[ext=webm]/best[ext=webm][height<=360]/best"]
+            formats = [
+                "mp4 (1080p)", 
+                "mp4 (720p)", 
+                "mp4 (480p)",
+                "mp4 (360p)",
+                "mp4 (240p)",
+                "webm (1080p)",
+                "webm (720p)", 
+                "webm (480p)",
+                "webm (360p)",
+                "webm (240p)",
+                "mkv (Best Quality)",
+                "mp4 (Best Quality)",
+                "mp4 (Smallest Size)"
+            ]
+            format_values = [
+                "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best",
+                "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
+                "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best",
+                "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best",
+                "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[ext=mp4][height<=240]/best",
+                "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best",
+                "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best",
+                "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best",
+                "bestvideo[ext=webm][height<=360]+bestaudio[ext=webm]/best[ext=webm][height<=360]/best",
+                "bestvideo[ext=webm][height<=240]+bestaudio[ext=webm]/best[ext=webm][height<=240]/best",
+                "bestvideo+bestaudio/best",  # MKV container by default for separate video/audio
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/mp4",  # Best quality MP4
+                "worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst"  # Smallest file size
+            ]
         else:  # audio
-            formats = ["MP3 (192kbps)", "MP3 (128kbps)", "M4A (High Quality)", "OGG (High Quality)"]
-            format_values = ["ba[ext=mp3]/ba/best --extract-audio --audio-format mp3 --audio-quality 192K",
-                            "ba[ext=mp3]/ba/best --extract-audio --audio-format mp3 --audio-quality 128K",
-                            "ba[ext=m4a]/ba/best --extract-audio --audio-format m4a",
-                            "ba[ext=vorbis]/ba/best --extract-audio --audio-format vorbis"]
+            formats = [
+                "MP3 (320kbps)",
+                "MP3 (192kbps)", 
+                "MP3 (128kbps)",
+                "M4A (High Quality)", 
+                "M4A (Medium Quality)",
+                "OGG (High Quality)",
+                "OPUS (Best Quality)",
+                "FLAC (Lossless)",
+                "WAV (Uncompressed)"
+            ]
+            format_values = [
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 320K --prefer-ffmpeg",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 192K --prefer-ffmpeg",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 128K --prefer-ffmpeg",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 0",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 2",
+                "-f ba[ext=vorbis]/ba/best --extract-audio --audio-format vorbis --audio-quality 0",
+                "-f ba/ba/best --extract-audio --audio-format opus --audio-quality 0",
+                "-f ba/ba/best --extract-audio --audio-format flac",
+                "-f ba/ba/best --extract-audio --audio-format wav"
+            ]
         
         # Update dropdown options
         self.format_dropdown['values'] = formats
@@ -334,14 +376,56 @@ class PlaylistHandler:
             self.log(f"Downloading ({i+1}/{len(items)}): {item['title']}", "INFO")
             
             try:
-                # Configure yt-dlp options
+                # Get format from the item
+                format_string = item.get('format', 'best')
+                format_type = item.get('type', 'video')
+                
+                # Base options
                 ydl_opts = {
-                    'format': item['format'],
                     'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                     'progress_hooks': [self.update_download_progress],
-                    'quiet': True,
-                    'no_warnings': True
                 }
+                
+                # Set format-specific options
+                if format_type == 'audio':
+                    # Parse the format string for audio options
+                    format_parts = format_string.split(' --')
+                    format_selector = format_parts[0].replace('-f ', '')
+                    
+                    ydl_opts['format'] = format_selector
+                    
+                    # Apply audio extraction options based on format
+                    if any('mp3' in part for part in format_parts):
+                        ydl_opts['postprocessors'] = [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '192' if '192K' in format_string else '128',
+                        }]
+                        ydl_opts['extractaudio'] = True
+                        ydl_opts['audioformat'] = 'mp3'
+                        if 'prefer-ffmpeg' in format_string:
+                            ydl_opts['prefer_ffmpeg'] = True
+                            
+                    elif any('m4a' in part for part in format_parts):
+                        ydl_opts['postprocessors'] = [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'm4a',
+                            'preferredquality': '0',
+                        }]
+                        ydl_opts['extractaudio'] = True
+                        ydl_opts['audioformat'] = 'm4a'
+                        
+                    elif any('vorbis' in part for part in format_parts):
+                        ydl_opts['postprocessors'] = [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'vorbis',
+                            'preferredquality': '0',
+                        }]
+                        ydl_opts['extractaudio'] = True
+                        ydl_opts['audioformat'] = 'vorbis'
+                else:
+                    # For video, just use the format string directly
+                    ydl_opts['format'] = format_string
                 
                 # Download the video
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -520,16 +604,18 @@ def download_item(item, output_path=None, progress_callback=None, log_func=None)
         'no_warnings': True,
         'outtmpl': output_template,
     }
-    
+        
+        # For audio downloads, ensure we're extracting and converting properly
     # For audio downloads, ensure we're extracting and converting properly
     if item_type == 'audio':
-        # Parsig the format string to extract options
+        # Parse the format string to extract options
         format_parts = format_string.split(' --')
-        format_selector = format_parts[0]
         
-        # Setting up base options for audio downlod
+        # Get just the format selector (remove -f if present)
+        format_selector = format_parts[0].replace('-f ', '')
+        
+        # Set up base options for audio download
         ydl_opts['format'] = format_selector
-        ydl_opts['extract_audio'] = True
         
         # Apply specific audio format and quality if specified
         if any('mp3' in part for part in format_parts):
@@ -538,18 +624,28 @@ def download_item(item, output_path=None, progress_callback=None, log_func=None)
                 'preferredcodec': 'mp3',
                 'preferredquality': '192' if '192K' in format_string else '128',
             }]
+            ydl_opts['extractaudio'] = True
+            ydl_opts['audioformat'] = 'mp3'
+            if 'prefer-ffmpeg' in format_string:
+                ydl_opts['prefer_ffmpeg'] = True
+                
         elif any('m4a' in part for part in format_parts):
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'm4a',
-                'preferredquality': '0',  # Best quality but if 5 low quality, hope u got meaning
+                'preferredquality': '0',
             }]
+            ydl_opts['extractaudio'] = True
+            ydl_opts['audioformat'] = 'm4a'
+            
         elif any('vorbis' in part for part in format_parts):
             ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'vorbis',
-                'preferredquality': '0',  # Best quality
+                'preferredquality': '0',
             }]
+            ydl_opts['extractaudio'] = True
+            ydl_opts['audioformat'] = 'vorbis'
     else:
         # For video downloads, just use the format string
         ydl_opts['format'] = format_string
