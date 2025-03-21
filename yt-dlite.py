@@ -14,7 +14,7 @@ class YouTubeDownloaderGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Yt-dlite Downloader")
-        self.root.geometry("850x600")
+        self.root.geometry("850x580")
         self.root.resizable(True, True)
         self.root.minsize(800, 550)
         self.fetch_cancelled = False
@@ -82,8 +82,8 @@ class YouTubeDownloaderGUI:
             # Dark theme colors
             bg_color = "#1E1E1E"  # Dark background
             fg_color = "#E0E0E0"  # Light text
-            accent_color = "#007ACC"  # Blue accent
-            accent_hover = "#0098FF"  # Lighter blue on hover
+            accent_color = "#0098FF"  # Lighter blue on hover
+            accent_hover = "#007ACC"  # Blue accent
             tree_bg = "#2D2D2D"  # Slightly lighter than main bg
             tab_bg = "#333333"  # Dark gray for inactive tabs
             entry_bg = "#3C3C3C"  # Dark input fields
@@ -92,8 +92,8 @@ class YouTubeDownloaderGUI:
             # Light theme colors
             bg_color = "#F8F9FA"  # Soft light gray
             fg_color = "#333333"  # Dark text
-            accent_color = "#009688"  # Teal
-            accent_hover = "#00796B"  # Darker teal on hover
+            accent_color = "#C70039"  # Dark red
+            accent_hover = "#0098FF"  # Lighter blue on hover
             tree_bg = "white"
             tab_bg = "#E0E0E0"  # Light gray for inactive tabs
             entry_bg = "white"
@@ -220,6 +220,8 @@ class YouTubeDownloaderGUI:
 
         self.url_entry = ttk.Entry(url_frame, width=70, font=("Helvetica", 10))
         self.url_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        # Bind Enter key to fetch_video_info function
+        self.url_entry.bind("<Return>", lambda event: self.fetch_video_info())
 
         paste_button = ttk.Button(url_frame, text="Paste", width=5, command=self.paste_from_clipboard)
         paste_button.pack(side=tk.LEFT, padx=2)
@@ -482,15 +484,15 @@ class YouTubeDownloaderGUI:
         self.preview_info_var = tk.StringVar(value="Select a file to preview")
         ttk.Label(preview_frame, textvariable=self.preview_info_var, wraplength=300).pack(pady=10)
                 
-        # Bottom section - Project info
-        info_frame = ttk.LabelFrame(vertical_paned, text="Project Information")
+        # Bottom section - Creditsfo
+        info_frame = ttk.LabelFrame(vertical_paned, text="Credits")
         vertical_paned.add(info_frame, weight=30)
 
-        # Create a frame with padding for the project info
+        # Create a frame with padding for the Credits
         info_content_frame = ttk.Frame(info_frame, padding=10)
         info_content_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Project info with normal fields
+        # Credits with normal fields
         ttk.Label(info_content_frame, text="updates & issues:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
         github_link = ttk.Label(info_content_frame, text="https://yt-dlite/visit", foreground="blue", cursor="hand2")
         github_link.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
