@@ -190,15 +190,15 @@ class PlaylistHandler:
                 "WAV (Uncompressed)"
             ]
             format_values = [
-                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 320K --prefer-ffmpeg",
-                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 192K --prefer-ffmpeg",
-                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 128K --prefer-ffmpeg",
-                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 0",
-                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 2",
-                "-f ba[ext=vorbis]/ba/best --extract-audio --audio-format vorbis --audio-quality 0",
-                "-f ba/ba/best --extract-audio --audio-format opus --audio-quality 0",
-                "-f ba/ba/best --extract-audio --audio-format flac",
-                "-f ba/ba/best --extract-audio --audio-format wav"
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 320K --prefer-ffmpeg --embed-thumbnail --add-metadata",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 192K --prefer-ffmpeg --embed-thumbnail --add-metadata",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 128K --prefer-ffmpeg --embed-thumbnail --add-metadata",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 0 --embed-thumbnail --add-metadata",
+                "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 2 --embed-thumbnail --add-metadata",
+                "-f ba[ext=vorbis]/ba/best --extract-audio --audio-format vorbis --audio-quality 0 --embed-thumbnail --add-metadata",
+                "-f ba/ba/best --extract-audio --audio-format opus --audio-quality 0 --embed-thumbnail --add-metadata",
+                "-f ba/ba/best --extract-audio --audio-format flac --embed-thumbnail --add-metadata",
+                "-f ba/ba/best --extract-audio --audio-format wav --embed-thumbnail --add-metadata"
             ]
         
         # Update dropdown options
