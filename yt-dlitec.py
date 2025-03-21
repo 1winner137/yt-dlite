@@ -233,6 +233,7 @@ def main():
             "  '--list-formats' requires a valid URL.\n"
             "  '--resume' will attempt to continue partially downloaded files.\n"
             "  Supported formats include: mp4, webm, mp3, m4a, and more.\n"
+            "   GUI version consider using yt-dlite.py"
             "  Any yt-dlp options like --no-playlist and other similar are supported and passed through."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
