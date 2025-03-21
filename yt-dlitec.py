@@ -1,6 +1,5 @@
 import argparse
 import sys
-import subprocess
 import yt_dlp
 import os
 import re
@@ -213,36 +212,6 @@ def direct_yt_dlp_download(urls, extra_args=None):
         return False
 
 def main():
-    # First, check for --gui flag directly in sys.argv before any argument parsing
-    if '--gui' in sys.argv:
-        print("Launching GUI mode...")
-        gui_launched = False
-        
-        # First try Python script
-        try:
-            result = subprocess.run(["python", "yt-dlite.py"], check=True)
-            if result.returncode == 0:
-                print("GUI launched successfully")
-                gui_launched = True
-        except Exception as e:
-            print("Failed to launch Python GUI script, Trying yt-dlite.exe")
-            
-        # Try executable only if Python script failed
-        if not gui_launched:
-            try:
-                result = subprocess.run(["yt-dlite.exe"], check=True)
-                #result = subprocess.run(["./yt-dlite"], check=True) - uncheck this if you want to compile for linux
-                if result.returncode == 0:
-                    print("GUI executable launched successfully")
-                    gui_launched = True
-            except Exception as e2:
-                # Only show error if both methods failed
-                if not gui_launched:
-                    print("ERROR: Could not launch GUI")
-                    print("Please ensure that either yt-dlite.py or yt-dlite.exe exists in the same directory")
-        
-        sys.exit(0)
-    
     # Create parser to handle the special cases
     parser = argparse.ArgumentParser(
         description="""
@@ -259,10 +228,8 @@ def main():
             "  python yt-dlitec.py --list-formats <URL>      # List available formats\n"
             "  python yt-dlitec.py --resume --video <URL>    # Resume interrupted video download\n"
             "  python yt-dlitec.py --no-playlist --video <URL> # Skip playlist, download single video\n"
-            "  python yt-dlitec.py --gui                     # Launch GUI mode (ignores all other arguments)\n"
             "  python yt-dlitec.py <URL>                     # Pass directly to yt-dlp\n\n"
             "Notes:\n"
-            "  '--gui' should be run alone, as script(.py or exe) --gui.\n"
             "  '--list-formats' requires a valid URL.\n"
             "  '--resume' will attempt to continue partially downloaded files.\n"
             "  Supported formats include: mp4, webm, mp3, m4a, and more.\n"
@@ -278,7 +245,6 @@ def main():
     parser.add_argument('--format', help='Specify format for video or audio (e.g., mp4, webm, mp3)')
     parser.add_argument('--output', help='Specify custom output directory')
     parser.add_argument('--list-formats', help='List available formats for the given YouTube URL')
-    parser.add_argument('--gui', action='store_true', help='Launch yt-dlite.exe or some.exe which are GUI mode')
     parser.add_argument('--resume', action='store_true', help='Resume partially downloaded files')
     parser.add_argument('--help', action='store_true', help='Show this help message')
     parser.add_argument('urls', nargs='*', help='URLs to download')
