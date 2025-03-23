@@ -30,9 +30,9 @@ fi
 
 # Check for required files
 echo "Checking for required files..."
-for file in yt-dlite.py yt-dlitec.py misc.py; do
+for file in ../yt-dlite.py ../yt-dlitec.py ../misc.py; do
     if [ ! -f "$file" ]; then
-        echo "ERROR: $file not found in the current directory."
+        echo "ERROR: $(basename "$file") not found in the parent directory."
         echo "This file is required for yt-dlite to function properly."
         exit 1
     fi
@@ -42,14 +42,14 @@ done
 echo "Creating executable wrappers for YT-DLite..."
 cat > yt-dlite << EOL
 #!/bin/bash
-cd "$(dirname "\$0")"
-python3 "./yt-dlite.py" "\$@"
+SCRIPT_DIR="\$(dirname "\$(readlink -f "\$0")")"
+python3 "\$SCRIPT_DIR/../yt-dlite.py" "\$@"
 EOL
 
 cat > yt-dlitec << EOL
 #!/bin/bash
-cd "$(dirname "\$0")"
-python3 "./yt-dlitec.py" "\$@"
+SCRIPT_DIR="\$(dirname "\$(readlink -f "\$0")")"
+python3 "\$SCRIPT_DIR/../yt-dlitec.py" "\$@"
 EOL
 
 chmod +x yt-dlite
@@ -61,7 +61,7 @@ read -p "Would you like to install yt-dlite system-wide for all users? (y/n): " 
 if [[ $system_wide == "y" || $system_wide == "Y" ]]; then
     echo "Installing system-wide..."
     sudo mkdir -p /usr/local/share/yt-dlite
-    sudo cp yt-dlite.py yt-dlitec.py misc.py /usr/local/share/yt-dlite/
+    sudo cp ../yt-dlite.py ../yt-dlitec.py ../misc.py /usr/local/share/yt-dlite/
     
     # Create system-wide wrappers
     cat > system-yt-dlite << EOL
@@ -88,7 +88,7 @@ else
     
     if [[ $add_to_path == "y" || $add_to_path == "Y" ]]; then
         mkdir -p ~/.local/share/yt-dlite
-        cp yt-dlite.py yt-dlitec.py misc.py ~/.local/share/yt-dlite/
+        cp ../yt-dlite.py ../yt-dlitec.py ../misc.py ~/.local/share/yt-dlite/
         
         # Create personal wrappers
         cat > personal-yt-dlite << EOL
@@ -133,5 +133,5 @@ if [[ $system_wide == "y" || $system_wide == "Y" || $add_to_path == "y" || $add_
     echo "  - yt-dlitec for the terminal version"
 fi
 
-echo "If you encounter any issues, check the precompiled version at:"
-echo "https://github.com/1winner137/yt-dlite/releases"
+echo "If you encounter any issues, report it on github account."
+echo "You can check the precompiled version at: https://github.com/1winner137/yt-dlite/releases"
