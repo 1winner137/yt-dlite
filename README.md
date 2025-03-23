@@ -25,25 +25,31 @@
 - FFmpeg (required for format conversion and merging), but not MUST
 
 ### Quick Install
-
+#### Windows
 ```bash
 # Clone the repository
 git clone https://github.com/1winner137/yt-dlite.git
-cd yt-dlite
-
-# Install dependencies
-# For Non-Windows
-chmod +x ./installation.sh
-
-# For windows
-Double click - installation.bat
-
-# Install FFmpeg (platform specific)
-# Windows: Download from https://ffmpeg.org/download.html and add to PATH
-# macOS: brew install ffmpeg
-# Ubuntu/Debian: sudo apt install ffmpeg
-# Fedora: sudo dnf install ffmpeg
+cd yt-dlite/installation
+# Run installation
+installation.bat
 ```
+#### Debian(Linux\Ubuntu\etc..)
+```bash
+# Clone the repository
+git clone https://github.com/1winner137/yt-dlite.git
+cd yt-dlite/installation
+# Run installation
+chmod +x ./installation_debian.sh && ./installation_debian.sh
+```
+
+## Install FFmpeg (platform specific)
+- **Windows:** [Download FFmpeg](https://ffmpeg.org/download.html), extract, and add it to `PATH`.  
+  - Recommended build: [FFmpeg Git Full](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z)  
+
+- **macOS:**  brew install ffmpeg
+- **Ubuntu\Debian:** sudo apt install ffmpeg
+- **Fedora:** sudo dnf install ffmpeg
+
 
 ## Usage
 
@@ -54,10 +60,6 @@ Launch the graphical interface with:
 ```bash
 python yt-dlite.py --gui
 ```
-OR
-```bash
-python yt-dliteg.py
-```
 
 The GUI provides a simple interface for:
 - Entering video/audio URLs
@@ -66,6 +68,7 @@ The GUI provides a simple interface for:
 - Monitoring download progress
 - Resuming interrupted downloads
 - Freedom to choose formats
+- Dark and light mode and other features
 
 ### Command-Line Interface
 
@@ -101,7 +104,7 @@ List available formats:
 python yt-dlite.py --list-formats https://www.youtube.com/watch?v=example
 ```
 
-This will display all available formats with their IDs, extensions, and resolutions, not limited to site.
+This will display all available formats with their IDs, extensions, and resolutions, not limited to youtube site.
 
 ### Resume Downloads
 
@@ -136,6 +139,7 @@ This project is licensed under the GNU GPLv3.0 License - see the LICENSE file fo
 ## Donation
 Conside donating
 BTC : bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h
+Paypal : winnernova7@gmail.com
 
 ## Acknowledgments
 
