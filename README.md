@@ -114,14 +114,14 @@ yt-dlite can continue partially downloaded files:
 python yt-dlite.py --resume --video https://www.youtube.com/watch?v=example
 ```
 
-### Custom Output Directory
+### miscellaneous
 
-Save downloads to a specific location:
+Download playlist:
 
 ```bash
 python yt-dlite.py --video https://www.youtube.com/watch?v=example --output ~/Downloads
 ```
-
+It works like yt-dlp, so you can use --no-playlist to download a single video instead of a whole playlist
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -138,7 +138,8 @@ This project is licensed under the GNU GPLv3.0 License - see the LICENSE file fo
 
 ## Donation
 Conside donating
-BTC : bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h
+BTC : bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h 
+
 Paypal : winnernova7@gmail.com
 
 ## Acknowledgments
