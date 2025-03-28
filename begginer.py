@@ -10,6 +10,7 @@ import re
 import os
 import pyperclip
 import urllib.request
+from misc import PlaylistHandler
 
 class BeginnerDownloaderGUI(ttk.Frame):
     def __init__(self, parent):
@@ -105,9 +106,12 @@ class BeginnerDownloaderGUI(ttk.Frame):
         button_frame.pack(fill=tk.X, pady=0.1)                
         cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
         cancel_button.pack(side=tk.LEFT, padx=1)
+
+    import threading
+
     def search_engine(self):
         query = self.search_entry.get().strip()
-        if not query:
+        if not query or self.search_event.is_set():  # Stop if the event is set
             return
 
         # Clear previous results
@@ -115,32 +119,60 @@ class BeginnerDownloaderGUI(ttk.Frame):
             widget.destroy()
         self.thumbnail_images.clear()
 
-        # Check if it's a URL
-        if re.match(r'https?://', query):
+        # Check if it's a URL using a fast method
+        if query.startswith("http"):
             self.process_url(query)
         else:
             self.search_youtube(query)
-    
+
     def process_url(self, url):
-        """Detect if the URL is a playlist and process accordingly."""
+        """Detect if the URL is a playlist or a single video and process accordingly."""
+        if self.search_event.is_set():  # Stop if the event is set
+            return
+
         if "list=" in url:
-            print("Playlist detected! Processing as a playlist...")
-            # You can integrate your `fetch_and_update` function here
+            # Update GUI to show playlist detection and set loading cursor
+            self.status_label.config(text="Playlist detected! Processing...", foreground="blue")
+            self.parent.config(cursor="watch")  # Change mouse to loading
+
+            # Start a new thread to process the playlist so the UI remains responsive
+            threading.Thread(target=self.process_playlist, args=(url,)).start()
+
         else:
-            print("Single video detected! Processing...")
-            self.fetch_video_info(url)
+            # It's a single video, process it for download
+            self.status_label.config(text="Single video detected! Processing...", foreground="blue")
             self.create_download_button(url)
-    
-    def fetch_video_info(self, url):
-        """Fetch video information for a single video."""
-        try:
-            ydl_opts = {'quiet': True, 'noplaylist': True}
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                print(f"Title: {info.get('title', 'Unknown')}")
-                print(f"Uploader: {info.get('uploader', 'Unknown')}")
-        except Exception as e:
-            print(f"Error fetching video info: {e}")
+            self.status_label.config(text="Video ready for download!", foreground="green")
+
+    def process_playlist(self, url):
+        """Process playlist in a background thread."""
+        if self.search_event.is_set():  # Stop if the event is set
+            return
+
+        import misc
+        if misc.is_playlist(url):  # Ensuring it's a valid playlist
+            # Call the playlist handler function
+            playlist_handler = misc.process_playlist_url(self.parent, url)
+            # After processing, update GUI
+            self.status_label.config(text="Playlist processed successfully!", foreground="green")
+        else:
+            self.status_label.config(text="Invalid playlist URL!", foreground="red")
+
+        # Reset mouse cursor after processing
+        self.parent.config(cursor="")  # Reset to default cursor
+
+    def create_download_button(self, url):
+        """Create a download button for the video with format options."""
+        if self.search_event.is_set():  # Stop if the event is set
+            return
+
+        # Update GUI with download options for the video
+        self.status_label.config(text=f"Creating download options for {url}...", foreground="blue")
+        print("Create download options for URL:", url)
+        # Logic to create buttons for the download options goes here
+        self.status_label.config(text="Download options ready!", foreground="green")
+
+
 
     
     def create_widgets(self):
@@ -356,11 +388,11 @@ class BeginnerDownloaderGUI(ttk.Frame):
         if d['status'] == 'error':
             print(f"yt-dlp error: {d['error']}")
                 
-    def create_download_button(self, url):
-        """Create a download button for the video with format options."""
-        print("Create download options for URL:", url)
-        # Placeholder function to add download options for video formats (MP3, MP4, WebM)
-        # You would need to add logic for fetching the available formats for download.
+    # def create_download_button(self, url):
+    #     """Create a download button for the video with format options."""
+    #     print("Create download options for URL:", url)
+    #     # Placeholder function to add download options for video formats (MP3, MP4, WebM)
+    #     # You would need to add logic for fetching the available formats for download.
 
     def cancel_search(self):
         """Cancel the ongoing search operation and update the GUI."""
