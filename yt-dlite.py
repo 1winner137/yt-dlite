@@ -796,68 +796,97 @@ class YouTubeDownloaderGUI:
             self.log(f"Error fetching video info: {str(e)}", "ERROR")
             self.root.after(0, lambda: messagebox.showerror("Error", f"An error occurred: {str(e)}"))
             self.root.after(0, lambda: self.set_loading_state(False))
-    #Background thread for fetching video info.
+    #Background thread for fetching video info.#########################################################
     def _fetch_info_thread(self, url):
+        """
+        Optimized thread function to fetch video info using yt-dlp without requests and sorting.
+        Focuses on speed by minimizing operations and removing unnecessary processing.
+        """
         start_time = time.time()
+        self.log(f"Starting fetch for URL: {url}", "INFO")
+        
         try:
-            # Check if operation was cancelled before starting
+            # Early cancellation check
             if self.fetch_cancelled:
                 self.log("Fetch cancelled before starting", "INFO")
                 return
-                
-            # Setup yt-dlp options
+            
+            # Minimal yt-dlp options for maximum speed
             ydl_opts = {
                 'quiet': True,
                 'no_warnings': True,
-            }            
-            # Create YoutubeDL object with options
+                'ignoreerrors': False,
+                'no_color': True,
+                'extract_flat': False,
+                'socket_timeout': 15,  # Reduced timeout for faster failure
+            }
+            
+            # Single-pass extraction without format processing
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Check cancellation before expensive operation
                 if self.fetch_cancelled:
                     self.log("Fetch cancelled before extraction", "INFO")
-                    return                    
-                # Extract information about the video
-                self.video_info = ydl.extract_info(url, download=False)                
-                # Check cancellation after extraction
+                    return
+                
+                # Direct extraction without format processing (faster)
+                self.log("Extracting basic video info...", "DEBUG")
+                info_dict = ydl.extract_info(url, download=False, process=False)
+                
+                if not info_dict:
+                    self.log("No video information returned by yt-dlp", "ERROR")
+                    raise ValueError("Failed to extract video information")
+                    
                 if self.fetch_cancelled:
                     self.log("Fetch cancelled after extraction", "INFO")
+                    return
+                
+                # Store raw info without processing formats
+                self.video_info = info_dict
+                raw_formats = info_dict.get('formats', [])
+                self.log(f"Found {len(raw_formats)} raw formats", "DEBUG")
+                
+                # Minimal format processing - no filesize fetching or sorting
+                self.formats = [
+                    {
+                        **fmt,
+                        'resolution': f"{fmt.get('width', 0)}x{fmt.get('height', 0)}"
+                        if fmt.get('width') and fmt.get('height')
+                        else None
+                    }
+                    for fmt in raw_formats
+                    if fmt.get('format_id')  # Only include formats with IDs
+                ]
+                
+                if self.fetch_cancelled:
+                    self.log("Fetch cancelled before UI update", "INFO")
                     self.video_info = None
-                    return                
-                # Process the formats if we have video info
-                if self.video_info:
-                    self.formats = self.video_info.get('formats', [])                    
-                    # Check cancellation before UI update
-                    if self.fetch_cancelled:
-                        self.log("Fetch cancelled before UI update", "INFO")
-                        self.video_info = None
-                        self.formats = []
-                        return                    
-                    # Update the UI in the main thread
-                    self.root.after(0, self.update_format_list)
-                    self.root.after(0, self.update_video_info)
-                    self.root.after(0, lambda: self.status_label.config(
-                        text=f"Found {len(self.formats)} formats"))                    
-                    # Log completion time
-                    elapsed = time.time() - start_time
-                    self.log(f"Fetch completed in {elapsed:.2f} seconds", "DEBUG")
-                else:
-                    # Handle case where no video info was returned
-                    if not self.fetch_cancelled:
-                        self.root.after(0, lambda: messagebox.showerror(
-                            "Error", "No video information found. Check the URL and try again."))
-                        self.root.after(0, lambda: self.status_label.config(
-                            text="No video information found"))
-                        self.log("No video information returned", "ERROR")        
-        except Exception as e:
-            # Only show error if not cancelled
+                    self.formats = []
+                    return
+                
+                # Fast UI updates
+                self.root.after(0, self.update_format_list)
+                self.root.after(0, self.update_video_info)
+                
+                elapsed = time.time() - start_time
+                self.log(f"Fetch completed in {elapsed:.2f} seconds", "INFO")
+                
+        except yt_dlp.utils.DownloadError as e:
             if not self.fetch_cancelled:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Error", f"Failed to fetch video info: {str(e)}"))
-                self.root.after(0, lambda: self.status_label.config(
-                    text="Error fetching information"))
-                self.log(f"Error fetching video info: {str(e)}", "ERROR")        
+                error_msg = str(e).strip() or "Unknown download error"
+                self.log(f"yt-dlp error: {error_msg}", "ERROR")
+                self.root.after(0, lambda: (
+                    messagebox.showerror("Download Error", f"yt-dlp error:\n{error_msg}"),
+                    self.status_label.config(text="Error: Could not process URL")
+                ))
+        
+        except Exception as e:
+            if not self.fetch_cancelled:
+                self.log(f"Unexpected error: {type(e).__name__}: {str(e)}", "ERROR")
+                self.root.after(0, lambda: (
+                    messagebox.showerror("Error", f"Failed to fetch video info: {str(e)}"),
+                    self.status_label.config(text="Error fetching information")
+                ))
+        
         finally:
-            # Reset loading state if not cancelled (cancelled will handle this itself)
             if not self.fetch_cancelled:
                 self.root.after(0, lambda: self.set_loading_state(False))
     #Update the video information display
@@ -947,7 +976,6 @@ class YouTubeDownloaderGUI:
                 self.log("Video information loaded successfully", "INFO")
         #format stuff start here, those which are fetched and let user download.            
     def update_format_list(self):
-        """Update the format list based on media type selection."""
         if not self.video_info:
             return
             
@@ -1050,7 +1078,7 @@ class YouTubeDownloaderGUI:
             elif fmt.get('filesize_approx'):
                 filesize = f"~{self.format_file_size(fmt.get('filesize_approx'))}"
             else:
-                filesize = 'N/A'
+                continue
             
             # Notes about the format
             notes = []
