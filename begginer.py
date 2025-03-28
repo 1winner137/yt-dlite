@@ -8,7 +8,7 @@ import tkinter as tk
 from tkinter import ttk
 import re
 import os
-import pyperclip  # Make sure you have this installed with `pip install pyperclip`
+import pyperclip
 import urllib.request
 
 class BeginnerDownloaderGUI(ttk.Frame):
@@ -17,7 +17,10 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.parent = parent
         self.thumbnail_images = []
         self.downloader_thread = None
+        self.search_thread = None
+        self.search_event = threading.Event()  # Event to signal search cancellation
         self.is_downloading = False
+
         # Configure styles
         self.style = ttk.Style()
         self.style.configure('Separator.TFrame', background='#e0e0e0')
@@ -43,7 +46,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.search_button = ttk.Button(search_frame, text="Search", command=self.search_engine)
         self.search_button.pack(side=tk.LEFT, padx=5)
 
-        self.cancel_button = ttk.Button(search_frame, text="X Cancel", command=self.cancel_download, state=tk.DISABLED)
+        self.cancel_button = ttk.Button(search_frame, text="X Cancel", command=self.cancel_search)
         self.cancel_button.pack(side=tk.LEFT, padx=5)
 
         # Scrollable Frame for Results
@@ -97,7 +100,11 @@ class BeginnerDownloaderGUI(ttk.Frame):
         
         self.status_label = ttk.Label(progress_frame, text="Ready", font=("Helvetica", 9))
         self.status_label.pack(pady=1)
-
+        # Download buttons
+        button_frame = ttk.Frame(bottom_frame)
+        button_frame.pack(fill=tk.X, pady=0.1)                
+        cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
+        cancel_button.pack(side=tk.LEFT, padx=1)
     def search_engine(self):
         query = self.search_entry.get().strip()
         if not query:
@@ -197,29 +204,38 @@ class BeginnerDownloaderGUI(ttk.Frame):
                     search_results = ydl.extract_info(f"ytsearch10:{query}", download=False)
 
                     if not search_results or 'entries' not in search_results:
-                        self.parent.after(0, lambda: self.status_label.config(
-                            text="No results found", 
-                            foreground="red"
-                        ))
+                        if not self.search_event.is_set():
+                            self.parent.after(0, lambda: self.status_label.config(
+                                text="No results found", 
+                                foreground="red"
+                            ))
                         return
 
                     self.parent.after(0, lambda: self.status_label.config(text=""))
-                    
+
                     for i, video in enumerate(search_results['entries']):
-                        if not video:
-                            continue
-                            
+                        if not video or self.search_event.is_set():  # Check if search is canceled
+                            self.parent.after(0, lambda: self.status_label.config(
+                                text="Search Canceled", foreground="red"
+                            ))  # Update GUI safely
+                            return
+                        
                         # Schedule UI updates in main thread
                         self.parent.after(0, self.create_video_item, video, i)
 
             except Exception as e:
-                self.parent.after(0, lambda: self.status_label.config(
-                    text=f"Error: {str(e)}", 
-                    foreground="red"
-                ))
+                if not self.search_event.is_set():  # Only show error if search was not canceled
+                    self.parent.after(0, lambda: self.status_label.config(
+                        text=f"Error: {str(e)}", 
+                        foreground="red"
+                    ))
 
         # Start search in background thread
-        threading.Thread(target=search, daemon=True).start()
+        self.search_event.clear()  # Clear the event before starting the search
+        self.search_thread = threading.Thread(target=search, daemon=True)
+        self.search_thread.start()
+
+
 
     def create_video_item(self, video, index):
         """Create a video result item in the UI."""
@@ -334,8 +350,6 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 text="No thumbnail", 
                 image=''
             ))
-
-
     
     def yt_dlp_hook(self, d):
         """Hook to handle yt-dlp errors."""
@@ -347,6 +361,28 @@ class BeginnerDownloaderGUI(ttk.Frame):
         print("Create download options for URL:", url)
         # Placeholder function to add download options for video formats (MP3, MP4, WebM)
         # You would need to add logic for fetching the available formats for download.
+
+    def cancel_search(self):
+        """Cancel the ongoing search operation and update the GUI."""
+        print("Search canceled.")  # This still prints to the terminal
+        
+        # Set the event to signal the search thread to stop
+        self.search_event.set()
+
+        # Ensure the GUI updates in the main thread
+        self.master.after(0, lambda: self.status_label.config(text="Search Canceled", foreground="red"))
+
+
+
+    def cancel_download(self):
+        """Cancel the ongoing download."""
+        if self.downloader_thread:
+            print("Download canceled")
+            self.downloader_thread.cancel()
+            self.cancel_button.config(state=tk.DISABLED)
+            self.status_label.config(text="Download Canceled")
+            self.progress['value'] = 0
+            self.status_label.config(text="Cancelling operation...", foreground="red")
 
     def paste_from_clipboard(self):
         """Paste URL from clipboard to search bar."""
@@ -378,15 +414,6 @@ class BeginnerDownloaderGUI(ttk.Frame):
         """Called when the download completes."""
         self.status_label.config(text="Download Complete")
         self.progress['value'] = 100
-
-    def cancel_download(self):
-        """Cancel the ongoing download."""
-        if self.downloader_thread:
-            print("Download canceled")
-            self.downloader_thread.cancel()
-            self.cancel_button.config(state=tk.DISABLED)
-            self.status_label.config(text="Download Canceled")
-            self.progress['value'] = 0
 
 if __name__ == "__main__":
     parent = tk.Tk()
