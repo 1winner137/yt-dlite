@@ -998,6 +998,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         if url:
             webbrowser.open(url)
 
+
 if __name__ == "__main__":
     parent = tk.Tk()
     parent.title("Beginner Downloader")
