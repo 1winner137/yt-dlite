@@ -10,6 +10,7 @@ import datetime
 import functools
 import webbrowser
 from misc import PlaylistHandler
+from begginer import BeginnerDownloaderGUI  # Import the class
 class YouTubeDownloaderGUI:
     def __init__(self, root):
         self.root = root
@@ -18,7 +19,24 @@ class YouTubeDownloaderGUI:
         self.root.resizable(True, True)
         self.root.minsize(800, 550)
         self.fetch_cancelled = False
+##
         
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Create tabs
+        self.main_tab = ttk.Frame(self.notebook)
+        self.verbose_tab = ttk.Frame(self.notebook)
+        self.downloads_tab = ttk.Frame(self.notebook)
+        self.beginner_tab = BeginnerDownloaderGUI(self.notebook)  # Attach BeginnerDownloaderGUI as a tab
+
+        self.notebook.add(self.beginner_tab, text="Beginner Mode")         
+        self.notebook.add(self.main_tab, text="Main")
+        self.notebook.add(self.verbose_tab, text="Log")
+        self.notebook.add(self.downloads_tab, text="Downloads")
+
+##
         # Theme state
         self.dark_mode = False
 
@@ -29,20 +47,7 @@ class YouTubeDownloaderGUI:
         
         # Initial theme setup
         self.setup_theme(dark_mode=False)
-        
-        # Create notebook for tabs
-        self.notebook = ttk.Notebook(root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Create main tab
-        self.main_tab = ttk.Frame(self.notebook)
-        self.verbose_tab = ttk.Frame(self.notebook)
-        self.downloads_tab = ttk.Frame(self.notebook)
-        
-        self.notebook.add(self.main_tab, text="Main")
-        self.notebook.add(self.verbose_tab, text="Log")
-        self.notebook.add(self.downloads_tab, text="Downloads")
-        
+                
         self.theme_button = ttk.Button(
             root, 
             text="🌙 Dark Mode", 
