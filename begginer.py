@@ -7,8 +7,8 @@ from PIL import Image, ImageTk
 import tkinter as tk
 from tkinter import ttk
 import re
+import time
 import os
-import pyperclip
 import urllib.request
 from misc import PlaylistHandler
 
@@ -127,8 +127,8 @@ class BeginnerDownloaderGUI(ttk.Frame):
 
     def process_url(self, url):
         """Detect if the URL is a playlist or a single video and process accordingly."""
-        if self.search_event.is_set():  # Stop if the event is set
-            return
+        #if self.search_event.is_set():  # Stop if the event is set
+            #return
 
         if "list=" in url:
             # Update GUI to show playlist detection and set loading cursor
@@ -160,21 +160,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
 
         # Reset mouse cursor after processing
         self.parent.config(cursor="")  # Reset to default cursor
-
-    def create_download_button(self, url):
-        """Create a download button for the video with format options."""
-        if self.search_event.is_set():  # Stop if the event is set
-            return
-
-        # Update GUI with download options for the video
-        self.status_label.config(text=f"Creating download options for {url}...", foreground="blue")
-        print("Create download options for URL:", url)
-        # Logic to create buttons for the download options goes here
-        self.status_label.config(text="Download options ready!", foreground="green")
-
-
-
-    
+   
     def create_widgets(self):
         # Search frame
         self.search_frame = ttk.Frame(self.parent)
@@ -388,37 +374,498 @@ class BeginnerDownloaderGUI(ttk.Frame):
         if d['status'] == 'error':
             print(f"yt-dlp error: {d['error']}")
                 
-    # def create_download_button(self, url):
-    #     """Create a download button for the video with format options."""
-    #     print("Create download options for URL:", url)
-    #     # Placeholder function to add download options for video formats (MP3, MP4, WebM)
-    #     # You would need to add logic for fetching the available formats for download.
+    from tkinter import Toplevel, StringVar, messagebox, ttk, Button
+    import threading
+    import yt_dlp
 
-    def cancel_search(self):
-        """Cancel the ongoing search operation and update the GUI."""
-        print("Search canceled.")  # This still prints to the terminal
+    def create_download_button(self, url):
+        """Create a download button for the video with format options."""
+        # Update GUI to indicate that download options are being prepared
+        self.status_label.config(text="Preparing download options...", foreground="blue")
+        print(f"Creating download options for: {url}")
         
-        # Set the event to signal the search thread to stop
-        self.search_event.set()
+        # If url is a dictionary, extract the valid video URL.
+        # We assume that the valid video URL is stored in the top-level key "url"
+        if isinstance(url, dict):
+            valid_url = url.get('url', '')
+            print(f"Extracted valid URL: {valid_url}")
+            url = valid_url  # Now 'url' contains just the valid video link.
+        
+        # Continue to create the download button using the extracted URL
+            self.open_format_selection_popup(url)
 
-        # Ensure the GUI updates in the main thread
-        self.master.after(0, lambda: self.status_label.config(text="Search Canceled", foreground="red"))
 
+    def open_format_selection_popup(self, url):
+        """Open a single popup window for selecting video or audio formats with dropdowns."""
+        # Create a new top-level window (popup)
+        format_popup = tk.Toplevel(self.parent)
+        format_popup.title("Download Options")
+        format_popup.geometry("500x280")
+        format_popup.resizable(False, False)
+        
+        # Make the popup modal (blocks interaction with main window)
+        format_popup.transient(self.parent)
+        format_popup.grab_set()
+        
+        # Center popup on parent window
+        x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (500 // 2)
+        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (280 // 2)
+        format_popup.geometry(f"+{x}+{y}")
+        
+        # Create a heading
+        heading_label = ttk.Label(format_popup, text="Select Download Format", font=("Helvetica", 12, "bold"))
+        heading_label.pack(pady=(15, 10))
+        
+        # Create a container frame
+        container = ttk.Frame(format_popup)
+        container.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+        
+        # Media type selection frame
+        media_type_frame = ttk.Frame(container)
+        media_type_frame.pack(fill=tk.X, pady=5)
+        
+        # Format options dictionaries
+        video_format_options = [
+            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"),
+            ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best"),
+            ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best"),
+            ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best"),
+            ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best"),
+            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best")
+        ]
+        
+        audio_format_options = [
+            ("MP3 - 320kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 320K"),
+            ("MP3 - 192kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 192K"),
+            ("MP3 - 128kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 128K"),
+            ("M4A - Best Quality", "bestaudio/best -x --audio-format m4a --audio-quality 0"),
+            ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0")
+        ]
+        
+        # Variables for selections
+        media_type_var = tk.StringVar(value="video")
+        video_format_var = tk.StringVar(value=video_format_options[0][0])
+        audio_format_var = tk.StringVar(value=audio_format_options[0][0])
+        
+        # Function to update dropdown visibility based on media type
+        def update_dropdown_visibility():
+            if media_type_var.get() == "video":
+                video_dropdown.pack(side=tk.RIGHT, padx=5, fill=tk.X, expand=True)
+                audio_dropdown.pack_forget()
+                format_label.config(text="Video Format:")
+            else:
+                audio_dropdown.pack(side=tk.RIGHT, padx=5, fill=tk.X, expand=True)
+                video_dropdown.pack_forget()
+                format_label.config(text="Audio Format:")
+        
+        # Video radio button
+        video_radio = ttk.Radiobutton(
+            media_type_frame, 
+            text="Video", 
+            variable=media_type_var, 
+            value="video",
+            command=update_dropdown_visibility
+        )
+        video_radio.pack(side=tk.LEFT, padx=5)
+        
+        # Audio radio button
+        audio_radio = ttk.Radiobutton(
+            media_type_frame, 
+            text="Audio", 
+            variable=media_type_var, 
+            value="audio",
+            command=update_dropdown_visibility
+        )
+        audio_radio.pack(side=tk.LEFT, padx=20)
+        
+        # Format selection frame
+        format_frame = ttk.Frame(container)
+        format_frame.pack(fill=tk.X, pady=10)
+        
+        # Format label
+        format_label = ttk.Label(format_frame, text="Video Format:")
+        format_label.pack(side=tk.LEFT)
+        
+        # Video dropdown
+        video_dropdown = ttk.Combobox(
+            format_frame, 
+            textvariable=video_format_var, 
+            values=[x[0] for x in video_format_options],
+            state="readonly",
+            width=30
+        )
+        
+        # Audio dropdown
+        audio_dropdown = ttk.Combobox(
+            format_frame, 
+            textvariable=audio_format_var, 
+            values=[x[0] for x in audio_format_options],
+            state="readonly",
+            width=30
+        )
+        
+        # Initial dropdown setup
+        update_dropdown_visibility()
+        
+        # Save path section
+        path_frame = ttk.Frame(container)
+        path_frame.pack(fill=tk.X, pady=10)
+        
+        path_label = ttk.Label(path_frame, text="Save to:")
+        path_label.pack(side=tk.LEFT)
+        
+        # Get default save path from entry
+        default_path = self.save_path_entry.get() if hasattr(self, 'save_path_entry') else os.path.expanduser("~/Downloads")
+        
+        path_var = tk.StringVar(value=default_path)
+        path_entry = ttk.Entry(path_frame, textvariable=path_var)
+        path_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        
+        # Browse button
+        browse_button = ttk.Button(
+            path_frame,
+            text="Browse",
+            command=lambda: path_var.set(filedialog.askdirectory() or path_var.get())
+        )
+        browse_button.pack(side=tk.RIGHT)
+        
+        # Button frame
+        button_frame = ttk.Frame(format_popup)
+        button_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=20, pady=15)
+        
+        # Cancel button
+        cancel_button = ttk.Button(
+            button_frame, 
+            text="Cancel", 
+            command=format_popup.destroy
+        )
+        cancel_button.pack(side=tk.LEFT, padx=5)
+        
+        # Download button
+        download_button = ttk.Button(
+            button_frame, 
+            text="Download", 
+            command=lambda: [
+                format_popup.destroy(),
+                self.start_download(
+                    # If url is a dict, let start_download handle it.
+                    url, 
+                    video_format_options[[x[0] for x in video_format_options].index(video_format_var.get())][1] 
+                        if media_type_var.get() == "video" 
+                        else audio_format_options[[x[0] for x in audio_format_options].index(audio_format_var.get())][1], 
+                    path_var.get()
+                )
+            ]
+        )
+        download_button.pack(side=tk.RIGHT, padx=5)
+###########################holy###########################################        
+    def start_download(self, url, format_string, output_path):
+        """Start the download process with the selected format options."""
+        # Ensure the output directory exists
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        
+        # Check if the provided url is a dictionary (as seen in debug prints)
+        if isinstance(url, dict):
+            print("start_download: Received URL as a dict. Extracting string from key 'url'.")
+            url_str = url.get('url', '')
+            print(f"start_download: Extracted URL: {url_str}")
+            url = url_str
+        else:
+            print("start_download: Received URL as a string.")
+        
+        # Debug prints for download settings
+        print(f"start_download: URL = {url}")
+        print(f"start_download: Selected format string = {format_string}")
+        print(f"start_download: Output path = {output_path}")
+        
+        # Update status in the UI
+        self.status_label.config(text="Starting download...", foreground="blue")
+        self.progress['value'] = 0
+        
+        # Start download in a thread to keep UI responsive
+        download_thread = threading.Thread(
+            target=self._download_thread,
+            args=(url, format_string, output_path)  # Now URL is a string
+        )
+        download_thread.daemon = True
+        download_thread.start()
 
+    def _download_thread(self, url, format_string, output_path):
+        """Download thread that handles the actual downloading process."""
+        try:
+            # Base options for yt-dlp
+            ydl_opts = {
+                'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
+                'progress_hooks': [self.update_download_progress],
+                'verbose': True,   # Debug info enabled
+                'quiet': False,    # Debug info enabled
+            }
+            
+            print("Download thread: yt-dlp options before format handling:")
+            print(ydl_opts)
+            
+            # Set format-specific options for audio or video
+            if 'audio' in format_string:
+                # For audio, split by ' --' and use the first part as the selector
+                ydl_opts['format'] = format_string.split(' --')[0].strip()
+                if 'mp3' in format_string:
+                    quality = '320' if '320K' in format_string else '192' if '192K' in format_string else '128'
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': quality,
+                    }]
+                    ydl_opts['extractaudio'] = True
+                elif 'm4a' in format_string:
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'm4a',
+                        'preferredquality': '0',
+                    }]
+                    ydl_opts['extractaudio'] = True
+                elif 'vorbis' in format_string or 'ogg' in format_string.lower():
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'vorbis',
+                        'preferredquality': '0',
+                    }]
+                    ydl_opts['extractaudio'] = True
+            else:
+                # For video, if the format string has a '-f ' prefix, remove it.
+                if format_string.startswith('-f '):
+                    format_string = format_string[3:]
+                ydl_opts['format'] = format_string
+            
+            print("Download thread: Final yt-dlp options:")
+            print(ydl_opts)
+            print(f"Download thread: Executing yt-dlp for URL: {url}")
+            print(f"Download thread: With format: {format_string}")
+            
+            # Execute the download with yt-dlp, passing a list containing the URL string
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+                
+        except Exception as e:
+            error_msg = f"Error downloading from {url}: {str(e)}"
+            self.status_label.config(text=error_msg, foreground="red")
+            print(error_msg)
+            time.sleep(2)
+        
+        # On completion, update UI
+        self.on_download_complete()
+
+    def on_download_complete(self):
+        """Update UI when download is complete."""
+        self.status_label.config(text="Download complete!", foreground="green")
+        self.progress['value'] = 100
+################################################################################33
+    def update_download_progress(self, d):
+        """Update the UI with download progress information."""
+        if d['status'] == 'downloading':
+            # Extract progress information
+            percent = d.get('_percent_str', '0%')
+            speed = d.get('_speed_str', 'N/A')
+            eta = d.get('_eta_str', 'N/A')
+            
+            # Update progress bar if percentage is available
+            if '_percent_str' in d and d['_percent_str'].endswith('%'):
+                try:
+                    percent_value = float(d['_percent_str'].replace('%', ''))
+                    self.progress['value'] = percent_value
+                except ValueError:
+                    # If conversion fails, don't update the progress bar
+                    pass
+            
+            # Update status label with progress information
+            progress_text = f"Downloading: {percent} complete (Speed: {speed}, ETA: {eta})"
+            self.status_label.config(text=progress_text, foreground="blue")
+        
+        elif d['status'] == 'finished':
+            self.status_label.config(text="Download finished, processing file...", foreground="green")
+            self.progress['value'] = 100
+
+    def update_progress_hook(self, d):
+        """Hook function for yt-dlp to update progress bar."""
+        if self.download_cancelled:
+            return
+        
+        # Handle different status messages
+        if d['status'] == 'downloading':
+            try:
+                # Calculate percentage if total bytes are known
+                if d.get('total_bytes'):
+                    percent = d['downloaded_bytes'] / d['total_bytes'] * 100
+                # Use estimated total bytes if available
+                elif d.get('total_bytes_estimate'):
+                    percent = d['downloaded_bytes'] / d['total_bytes_estimate'] * 100
+                else:
+                    # If we can't calculate percentage, just show indeterminate progress
+                    percent = -1
+                
+                # Get download speed
+                speed = d.get('speed', 0)
+                if speed:
+                    speed_str = f"{speed/1024/1024:.2f} MB/s"
+                else:
+                    speed_str = "-- MB/s"
+                
+                # Get ETA
+                eta = d.get('eta', 0)
+                if eta:
+                    eta_str = f"ETA: {eta//60}m {eta%60}s"
+                else:
+                    eta_str = "ETA: --"
+                
+                # Format status message
+                status_msg = f"Downloading: {speed_str} {eta_str}"
+                
+                # Update progress bar and status in main thread
+                if percent >= 0:
+                    self.parent.after(0, lambda: self.progress.config(value=percent))
+                self.parent.after(0, lambda: self.status_label.config(
+                    text=status_msg, 
+                    foreground="blue"
+                ))
+                
+            except Exception as e:
+                # If something goes wrong with progress calculation, show generic message
+                self.parent.after(0, lambda: self.status_label.config(
+                    text=f"Downloading...", 
+                    foreground="blue"
+                ))
+        
+        elif d['status'] == 'finished':
+            # Update UI to show processing state
+            self.parent.after(0, lambda: self.progress.config(value=100))
+            self.parent.after(0, lambda: self.status_label.config(
+                text="Download complete, processing file...", 
+                foreground="green"
+            ))
+        
+        elif d['status'] == 'error':
+            # Show error message
+            self.parent.after(0, lambda: self.status_label.config(
+                text=f"Error: {d.get('error', 'Unknown error')}", 
+                foreground="red"
+            ))
 
     def cancel_download(self):
-        """Cancel the ongoing download."""
-        if self.downloader_thread:
-            print("Download canceled")
-            self.downloader_thread.cancel()
-            self.cancel_button.config(state=tk.DISABLED)
-            self.status_label.config(text="Download Canceled")
+        """Cancel the current download."""
+        if self.is_downloading:
+            # Set cancellation flag
+            self.download_cancelled = True
+            
+            # Update UI
+            self.status_label.config(text="Cancelling download...", foreground="red")
+            
+            # Reset progress bar
             self.progress['value'] = 0
-            self.status_label.config(text="Cancelling operation...", foreground="red")
+            
+            # Re-enable search button
+            if hasattr(self, 'search_button'):
+                self.search_button.config(state=tk.NORMAL)
+
+    def onn_download_complete(self, info=None):
+        """Handle actions when download is complete."""
+        if self.download_cancelled:
+            self.status_label.config(text="Download cancelled", foreground="red")
+            self.progress['value'] = 0
+        else:
+            # Set progress to 100%
+            self.progress['value'] = 100
+            
+            # Get filename and title
+            title = info.get('title', 'Unknown') if info else 'Unknown'
+            filename = info.get('_filename', '') if info else ''
+            
+            # Update status with success message
+            self.status_label.config(
+                text=f"Download complete: {title[:30]}{'...' if len(title) > 30 else ''}", 
+                foreground="green"
+            )
+            
+            # Show a notification (optional)
+            try:
+                from tkinter import messagebox
+                messagebox.showinfo(
+                    "Download Complete", 
+                    f"Successfully downloaded:\n{title}"
+                )
+            except:
+                pass  # Skip notification if messagebox fails
+        
+        # Re-enable search button
+        if hasattr(self, 'search_button'):
+            self.search_button.config(state=tk.NORMAL)
+        
+        # Reset download flags
+        self.is_downloading = False
+        self.download_cancelled = False
+
+    def _format_size(self, bytes):
+        """Format bytes to human-readable size."""
+        if bytes < 1024:
+            return f"{bytes} B"
+        elif bytes < 1024 * 1024:
+            return f"{bytes/1024:.1f} KB"
+        elif bytes < 1024 * 1024 * 1024:
+            return f"{bytes/(1024*1024):.1f} MB"
+        else:
+            return f"{bytes/(1024*1024*1024):.1f} GB"
+
+    def _format_time(self, seconds):
+        """Format seconds to human-readable time."""
+        if seconds < 60:
+            return f"{seconds:.0f}s"
+        elif seconds < 3600:
+            return f"{seconds//60:.0f}m {seconds%60:.0f}s"
+        else:
+            return f"{seconds//3600:.0f}h {(seconds%3600)//60:.0f}m"
+
+    def cancel_download(self):
+        """Cancel the current download."""
+        if self.is_downloading:
+            # Set flag to tell download thread to stop
+            self.is_downloading = False
+            
+            # Update UI
+            self.status_label.config(text="Cancelling download...", foreground="red")
+            
+            # Note: yt-dlp doesn't have a direct way to cancel downloads,
+            # so we rely on the download thread checking is_downloading
+            # at various points to stop the process.
+        else:
+            self.status_label.config(text="No active download to cancel", foreground="blue")
+
+    def on_download_complete(self):
+        """Handle actions when download is complete."""
+        # Update UI
+        self.status_label.config(text="Download complete!", foreground="green")
+        self.progress["value"] = 100
+        
+        # Reset download flag
+        self.is_downloading = False
+        
+        # Re-enable any download buttons
+        if hasattr(self, 'download_button'):
+            self.download_button.config(state=tk.NORMAL)
+        
+        # Optional: Play a sound or show a notification
+        # self.parent.bell()  # Simple bell sound
+        
+        # Optional: Show the file in explorer/finder
+        # if sys.platform == 'win32':
+        #     os.startfile(self.save_path_entry.get())
+        # elif sys.platform == 'darwin':  # macOS
+        #     subprocess.call(['open', self.save_path_entry.get()])
+        # else:  # Linux
+        #     subprocess.call(['xdg-open', self.save_path_entry.get()])
+
 
     def paste_from_clipboard(self):
-        """Paste URL from clipboard to search bar."""
-        clipboard_text = pyperclip.paste()
+        """Paste URL from clipboard to search bar using Tkinter's clipboard."""
+        clipboard_text = self.parent.clipboard_get()
         self.search_entry.delete(0, tk.END)
         self.search_entry.insert(0, clipboard_text)
 
@@ -435,17 +882,15 @@ class BeginnerDownloaderGUI(ttk.Frame):
         if url:
             webbrowser.open(url)
 
-    def update_progress(self, current, total):
-        """Update the progress bar based on the download progress."""
-        progress = (current / total) * 100
-        self.progress['value'] = progress
-        self.status_label.config(text=f"Downloading... {progress:.2f}%")
-        self.parent.update_idletasks()
+    def cancel_search(self):
+        """Cancel the ongoing search operation and update the GUI."""
+        print("Search canceled.")  # This still prints to the terminal
+        
+        # Set the event to signal the search thread to stop
+        self.search_event.set()
 
-    def complete_download(self):
-        """Called when the download completes."""
-        self.status_label.config(text="Download Complete")
-        self.progress['value'] = 100
+        # Ensure the GUI updates in the main thread
+        self.master.after(0, lambda: self.status_label.config(text="Search Canceled", foreground="red"))
 
 if __name__ == "__main__":
     parent = tk.Tk()
