@@ -67,7 +67,7 @@ class PlaylistHandler:
                     return False
         except Exception as e:
             self.log(f"Error fetching playlist info: {str(e)}", "ERROR")
-            messagebox.showerror("Error", f"Failed to fetch playlist info: {str(e)}")
+            messagebox.showerror("Network Error", "Connection failed. Try again.")
             return False
         
         # Show dialog for format selection and create pop up, u can modify to make it more appealing
