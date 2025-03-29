@@ -11,6 +11,9 @@ import time
 import os
 import urllib.request
 from misc import PlaylistHandler
+from tkinter import Toplevel, StringVar, messagebox, ttk, Button
+import threading
+import yt_dlp
 
 class BeginnerDownloaderGUI(ttk.Frame):
     def __init__(self, parent):
@@ -21,6 +24,8 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.search_thread = None
         self.search_event = threading.Event()  # Event to signal search cancellation
         self.is_downloading = False
+        # Add in __init__ method
+        self.cancel_requested = False
 
         # Configure styles
         self.style = ttk.Style()
@@ -109,6 +114,30 @@ class BeginnerDownloaderGUI(ttk.Frame):
 
     import threading
 
+    def paste_from_clipboard(self):
+        """Paste URL from clipboard to search bar using Tkinter's clipboard."""
+        clipboard_text = self.parent.clipboard_get()
+        self.search_entry.delete(0, tk.END)
+        self.search_entry.insert(0, clipboard_text)
+
+    def cancel_search(self):
+        """Cancel the ongoing search operation and update the GUI."""
+        print("Search canceled.")  # This still prints to the terminal
+        
+        # Set the event to signal the search thread to stop
+        self.search_event.set()
+
+        # Ensure the GUI updates in the main thread
+        self.master.after(0, lambda: self.status_label.config(text="Search Canceled", foreground="red"))
+
+    def browse_save_location(self):
+        """Open a file dialog to choose the save location."""
+        from tkinter.filedialog import askdirectory
+        directory = askdirectory()
+        if directory:
+            self.save_path_entry.delete(0, tk.END)
+            self.save_path_entry.insert(0, directory)
+
     def search_engine(self):
         query = self.search_entry.get().strip()
         if not query or self.search_event.is_set():  # Stop if the event is set
@@ -195,7 +224,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         
         self.results_canvas.pack(side="left", fill="both", expand=True)
         self.scrollbar.pack(side="right", fill="y")
-    
+        
     def search_youtube(self, query):
         """Search YouTube for videos in a separate thread."""
         if not query:
@@ -209,17 +238,55 @@ class BeginnerDownloaderGUI(ttk.Frame):
         # Show searching status
         self.status_label.config(text="Searching...", foreground="blue")
         
+        # Create a list to store captured output messages
+        captured_output = []
+        
+        def custom_output_hook(message):
+            """Capture output from yt-dlp"""
+            captured_output.append(message)
+            # Check for network errors in the output
+            if "Failed to resolve" in message or "Temporary failure in name resolution" in message or "Failed to connect" in message:
+                self.parent.after(0, lambda: self.show_network_error_popup(message))
+        
         def search():
+            # Configure yt-dlp to use our hook
             ydl_opts = {
                 'extract_flat': True,
-                'quiet': True,
+                'quiet': False,  # Need this to be False to get output messages
                 'force_generic_extractor': True,
-                'progress_hooks': [self.yt_dlp_hook]
+                'progress_hooks': [self.yt_dlp_hook],
+                'verbose': True,  # Enable verbose output
             }
 
             try:
+                # Redirect stdout to capture yt-dlp output
+                import sys
+                import io
+                original_stdout = sys.stdout
+                sys.stdout = io.StringIO()
+                
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    # Override ydl's output methods to capture network errors
+                    original_to_screen = ydl.to_screen
+                    original_to_stderr = ydl.to_stderr
+                    
+                    def capture_output(message, *args, **kwargs):
+                        custom_output_hook(message)
+                        return original_to_screen(message, *args, **kwargs)
+                    
+                    def capture_stderr(message, *args, **kwargs):
+                        custom_output_hook(message)
+                        return original_to_stderr(message, *args, **kwargs)
+                    
+                    ydl.to_screen = capture_output
+                    ydl.to_stderr = capture_stderr
+                    
                     search_results = ydl.extract_info(f"ytsearch10:{query}", download=False)
+
+                    # Restore original stdout and output methods
+                    sys.stdout = original_stdout
+                    ydl.to_screen = original_to_screen
+                    ydl.to_stderr = original_to_stderr
 
                     if not search_results or 'entries' not in search_results:
                         if not self.search_event.is_set():
@@ -243,17 +310,26 @@ class BeginnerDownloaderGUI(ttk.Frame):
 
             except Exception as e:
                 if not self.search_event.is_set():  # Only show error if search was not canceled
-                    self.parent.after(0, lambda: self.status_label.config(
-                        text=f"Error: {str(e)}", 
-                        foreground="red"
-                    ))
+                    error_msg = str(e)
+                    # Check for specific network error messages
+                    if "Failed to resolve" in error_msg or "Failed to connect" in error_msg or "Temporary failure in name resolution" in error_msg:
+                        self.parent.after(0, lambda: self.show_network_error_popup(error_msg))
+                    else:
+                        self.parent.after(0, lambda: self.status_label.config(
+                            text=(f"Error: {error_msg}"), 
+                            foreground="red"
+                        ))
 
         # Start search in background thread
         self.search_event.clear()  # Clear the event before starting the search
         self.search_thread = threading.Thread(target=search, daemon=True)
         self.search_thread.start()
 
-
+    def show_network_error_popup(self, _):
+        """Display a network error popup."""
+        import tkinter.messagebox as messagebox
+        messagebox.showerror("Network Error", "Failed to connect. Check your internet and try again.")
+        self.status_label.config(text="Network Error", foreground="red")
 
     def create_video_item(self, video, index):
         """Create a video result item in the UI."""
@@ -305,79 +381,153 @@ class BeginnerDownloaderGUI(ttk.Frame):
         )
         download_button.pack(fill=tk.X, pady=2)
 
+        # Share button
+        def copy_and_notify(url_data):
+            # Handle URL if it's in a dictionary
+            if isinstance(url_data, dict):
+                url_data = url_data.get('url', '')
+                print(f"Extracted valid URL: {url_data}")
+            
+            # Copy URL to clipboard
+            self.parent.clipboard_clear()
+            self.parent.clipboard_append(url_data)
+            
+            # Show notification popup
+            notification = tk.Toplevel(self.parent)
+            notification.overrideredirect(True)
+            notification.attributes('-topmost', True)
+            
+            # Position the notification near the sharing button
+            x = self.parent.winfo_pointerx()
+            y = self.parent.winfo_pointery()
+            notification.geometry(f"+{x+10}+{y+10}")
+            
+            # Notification content
+            ttk.Label(notification, text="Link copied to clipboard!", padding=10).pack()
+            
+            # Auto-close notification after 2 seconds
+            notification.after(2000, notification.destroy)
+
+        share_button = ttk.Button(
+            button_frame,
+            text="↗ Share",
+            command=lambda url=video.get('url') or f"https://youtu.be/{video.get('id', '')}":
+                copy_and_notify(url)
+        )
+        share_button.pack(fill=tk.X, pady=2)
+
         # Video info section (to the right of buttons)
         info_frame = ttk.Frame(container)
         info_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
         # Title (truncated for long titles)
         title = video.get('title', 'No title')[:60] + ('...' if len(video.get('title', '')) > 60 else '')
-        ttk.Label(info_frame, text=title, font=('Arial', 10, 'bold')).pack(anchor='w')
+        ttk.Label(info_frame, text=f"{title}", font=('Arial', 10, 'bold')).pack(anchor='w')
+        #ttk.Label(info_frame, text=f"Title: {title}", font=('Arial', 10, 'bold')).pack(anchor='w')
+
 
         # Channel name
-        ttk.Label(info_frame, text=video.get('uploader', 'Unknown channel')).pack(anchor='w')
+        ttk.Label(info_frame, text=f"Channel: {video.get('uploader', 'Unknown channel')}").pack(anchor='w')
+
+        # Format view count with appropriate suffix (k, M, B)
+        view_count = video.get('view_count', 0)
+        if view_count >= 1_000_000_000:  # Billions
+            view_count_str = f"{view_count / 1_000_000_000:.1f}B"
+            # Remove .0 if it's a whole number
+            view_count_str = view_count_str.replace('.0B', 'B')
+        elif view_count >= 1_000_000:  # Millions
+            view_count_str = f"{view_count / 1_000_000:.1f}M"
+            view_count_str = view_count_str.replace('.0M', 'M')
+        elif view_count >= 1_000:  # Thousands
+            view_count_str = f"{view_count / 1_000:.1f}k"
+            view_count_str = view_count_str.replace('.0k', 'k')
+        else:
+            view_count_str = f"{view_count}" if view_count else 'N/A'
 
         # Duration fix: Convert float to int before formatting
         duration = int(video.get('duration', 0)) if video.get('duration') else 0
-        duration_str = f"{duration // 60}:{duration % 60:02d}" if duration else 'N/A'
-        ttk.Label(info_frame, text=duration_str).pack(anchor='w')
+        if duration:
+            hours = duration // 3600
+            minutes = (duration % 3600) // 60
+            seconds = duration % 60
+            
+            if hours > 0:
+                duration_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+            else:
+                duration_str = f"{minutes}:{seconds:02d}"
+        else:
+            duration_str = 'N/A'
 
+        # Create info lines with labels
+        ttk.Label(info_frame, text=f"Duration: {duration_str}").pack(anchor='w')
+        ttk.Label(info_frame, text=f"Viewers: {view_count_str}").pack(anchor='w')
         # Store video data
         video_frame.video_data = video
 
 
-    def download_thumbnail(self, thumbnail_url, label):
-        """Download and display video thumbnail with fallback."""
+    def download_thumbnail(self, thumbnail_url, label=None):
+        if label is None:
+            label = self.thumbnail_label
+            
+        if not thumbnail_url:
+            self.parent.after(0, lambda: label.config(text="No thumbnail", image=''))
+            return
+            
+        if "hqdefault" in thumbnail_url:
+            thumbnail_url = thumbnail_url.replace("hqdefault", "maxresdefault")
+            
+        if not thumbnail_url.startswith(('http://', 'https://')):
+            self.parent.after(0, lambda: label.config(text="Invalid URL", image=''))
+            return
+            
+        img_data = None
+        errors = []
+        
         try:
-            if not thumbnail_url.startswith(('http://', 'https://')):
-                raise ValueError("Invalid thumbnail URL")
-
-            # Try to get a higher resolution thumbnail if available
-            if "hqdefault" in thumbnail_url:
-                thumbnail_url = thumbnail_url.replace("hqdefault", "maxresdefault")
-
-            img_data = None
-
-            try:
-                response = requests.get(thumbnail_url, stream=True, timeout=10)
-                response.raise_for_status()
-                img_data = response.content
-            except Exception:
-                print("Requests failed, falling back to urllib.")
-                try:
-                    with urllib.request.urlopen(thumbnail_url) as response:
-                        img_data = response.read()
-                except Exception as e:
-                    print(f"Fallback also failed: {e}")
-                    img_data = None
-
-            if img_data:
-                img = Image.open(BytesIO(img_data))
-                img.thumbnail((240, 170), Image.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-
-                # Keep reference and update UI
-                self.thumbnail_images.append(photo)
-                self.parent.after(0, lambda: label.config(image=photo, text=""))
-                label.image = photo  # Keep reference
-            else:
-                raise ValueError("Failed to retrieve thumbnail")
-
+            import requests
+            response = requests.get(thumbnail_url, stream=True, timeout=10)
+            response.raise_for_status()
+            img_data = response.content
         except Exception as e:
-            print(f"Error loading thumbnail: {e}")
-            self.parent.after(0, lambda: label.config(
-                text="No thumbnail", 
-                image=''
-            ))
+            errors.append(f"Requests method failed: {str(e)}")
+            
+        if img_data is None:
+            try:
+                import urllib.request
+                with urllib.request.urlopen(thumbnail_url, timeout=10) as response:
+                    img_data = response.read()
+            except Exception as e:
+                errors.append(f"Urllib method failed: {str(e)}")
+        
+        if img_data:
+            try:
+                from PIL import Image, ImageTk
+                from io import BytesIO
+                
+                img = Image.open(BytesIO(img_data))
+                img.thumbnail((280, 130), Image.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                
+                if hasattr(self, 'thumbnail_images'):
+                    self.thumbnail_images.append(photo)
+                else:
+                    self.thumbnail_image = photo
+                    
+                self.parent.after(0, lambda: label.config(image=photo, text=""))
+                return True
+            except Exception as e:
+                errors.append(f"Image processing failed: {str(e)}")
+        
+        error_msg = "; ".join(errors)
+        self.parent.after(0, lambda: label.config(text="No thumbnail", image=''))
+        return False
+
     
     def yt_dlp_hook(self, d):
         """Hook to handle yt-dlp errors."""
         if d['status'] == 'error':
             print(f"yt-dlp error: {d['error']}")
                 
-    from tkinter import Toplevel, StringVar, messagebox, ttk, Button
-    import threading
-    import yt_dlp
-
     def create_download_button(self, url):
         """Create a download button for the video with format options."""
         # Update GUI to indicate that download options are being prepared
@@ -400,7 +550,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         # Create a new top-level window (popup)
         format_popup = tk.Toplevel(self.parent)
         format_popup.title("Download Options")
-        format_popup.geometry("500x280")
+        format_popup.geometry("500x320")  # Increased height to accommodate subtitle option
         format_popup.resizable(False, False)
         
         # Make the popup modal (blocks interaction with main window)
@@ -409,7 +559,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         
         # Center popup on parent window
         x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (500 // 2)
-        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (280 // 2)
+        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (320 // 2)  # Adjusted for new height
         format_popup.geometry(f"+{x}+{y}")
         
         # Create a heading
@@ -442,10 +592,20 @@ class BeginnerDownloaderGUI(ttk.Frame):
             ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0")
         ]
         
+        # Subtitle language options
+        subtitle_language_options = [
+            ("English", "en"),
+            ("German", "de"),
+            ("Swahili", "sw"),
+            ("Auto-generated (English)", "en-auto")
+        ]
+        
         # Variables for selections
         media_type_var = tk.StringVar(value="video")
         video_format_var = tk.StringVar(value=video_format_options[0][0])
         audio_format_var = tk.StringVar(value=audio_format_options[0][0])
+        subtitle_var = tk.BooleanVar(value=False)  # New variable for subtitle checkbox
+        subtitle_lang_var = tk.StringVar(value=subtitle_language_options[0][0])  # Language selection
         
         # Function to update dropdown visibility based on media type
         def update_dropdown_visibility():
@@ -453,10 +613,12 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 video_dropdown.pack(side=tk.RIGHT, padx=5, fill=tk.X, expand=True)
                 audio_dropdown.pack_forget()
                 format_label.config(text="Video Format:")
+                subtitle_frame.pack(fill=tk.X, pady=5)  # Show subtitle option for video
             else:
                 audio_dropdown.pack(side=tk.RIGHT, padx=5, fill=tk.X, expand=True)
                 video_dropdown.pack_forget()
                 format_label.config(text="Audio Format:")
+                subtitle_frame.pack_forget()  # Hide subtitle option for audio
         
         # Video radio button
         video_radio = ttk.Radiobutton(
@@ -504,6 +666,27 @@ class BeginnerDownloaderGUI(ttk.Frame):
             width=30
         )
         
+        # Subtitle option frame (new)
+        subtitle_frame = ttk.Frame(container)
+        
+        # Subtitle checkbox and language selection (new)
+        subtitle_check = ttk.Checkbutton(
+            subtitle_frame,
+            text="Download subtitles:",
+            variable=subtitle_var
+        )
+        subtitle_check.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Subtitle language dropdown
+        subtitle_lang_dropdown = ttk.Combobox(
+            subtitle_frame,
+            textvariable=subtitle_lang_var,
+            values=[x[0] for x in subtitle_language_options],
+            state="readonly",
+            width=20
+        )
+        subtitle_lang_dropdown.pack(side=tk.LEFT)
+        
         # Initial dropdown setup
         update_dropdown_visibility()
         
@@ -541,7 +724,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         )
         cancel_button.pack(side=tk.LEFT, padx=5)
         
-        # Download button
+        # Download button with added subtitle handling
         download_button = ttk.Button(
             button_frame, 
             text="Download", 
@@ -550,15 +733,28 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 self.start_download(
                     # If url is a dict, let start_download handle it.
                     url, 
-                    video_format_options[[x[0] for x in video_format_options].index(video_format_var.get())][1] 
-                        if media_type_var.get() == "video" 
-                        else audio_format_options[[x[0] for x in audio_format_options].index(audio_format_var.get())][1], 
+                    # Get the base format string and add subtitle command if needed
+                    video_format_options[[x[0] for x in video_format_options].index(video_format_var.get())][1] + 
+                    (f" --write-subs --sub-lang {get_subtitle_lang()}" if media_type_var.get() == 'video' and subtitle_var.get() else "") 
+                    if media_type_var.get() == "video"
+                    else audio_format_options[[x[0] for x in audio_format_options].index(audio_format_var.get())][1],
                     path_var.get()
                 )
             ]
         )
         download_button.pack(side=tk.RIGHT, padx=5)
-###########################holy###########################################        
+        
+        # Helper function to get subtitle language code based on selection
+        def get_subtitle_lang():
+            selected_lang = subtitle_lang_var.get()
+            for lang_name, lang_code in subtitle_language_options:
+                if lang_name == selected_lang:
+                    # Special handling for auto-generated
+                    if lang_code == "en-auto":
+                        return "en --write-auto-sub"
+                    return lang_code
+            return "en"  # Default to English if not found
+       
     def start_download(self, url, format_string, output_path):
         """Start the download process with the selected format options."""
         # Ensure the output directory exists
@@ -583,23 +779,102 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.status_label.config(text="Starting download...", foreground="blue")
         self.progress['value'] = 0
         
+        # Reset cancel flag before starting new download
+        self.cancel_requested = False
+        self.download_cancelled = False
+        
+        # Enable cancel button
+        if hasattr(self, 'cancel_button'):
+            self.cancel_button.config(state=tk.NORMAL)
+        
         # Start download in a thread to keep UI responsive
         download_thread = threading.Thread(
-            target=self._download_thread,
+            target=self.download_thread,
             args=(url, format_string, output_path)  # Now URL is a string
         )
         download_thread.daemon = True
         download_thread.start()
 
-    def _download_thread(self, url, format_string, output_path):
+    def update_download_progress(self, d):
+        """Update the progress bar and status label with download progress."""
+        # Check if cancellation was requested
+        if hasattr(self, 'cancel_requested') and self.cancel_requested:
+            raise Exception("Download cancelled by user")
+            
+        if d['status'] == 'downloading':
+            # Extract progress information
+            downloaded = d.get('downloaded_bytes', 0)
+            total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
+            
+            # Get filename information
+            filename = d.get('filename', '').split('/')[-1].split('\\')[-1]  # Extract just the filename
+            if len(filename) > 30:  # Truncate if too long
+                filename = filename[:27] + "..."
+            
+            # Calculate percentage if total size is known
+            if total > 0:
+                percentage = (downloaded / total) * 100
+                # Format percentage with proper display (1 decimal place)
+                percent_text = f"{percentage:.1f}%"
+                
+                # Format sizes for better display
+                downloaded_mb = downloaded / 1024 / 1024
+                total_mb = total / 1024 / 1024
+                size_text = f"{downloaded_mb:.1f} MB / {total_mb:.1f} MB"
+                
+                # Update the progress bar
+                self.progress['value'] = percentage
+                
+                # Update status with better font rendering
+                download_speed = d.get('speed', 0)
+                if download_speed:
+                    speed_text = f"{download_speed / 1024 / 1024:.2f} MB/s"
+                    status_text = f"Downloading: {filename} - {percent_text} ({size_text}) at {speed_text}"
+                else:
+                    status_text = f"Downloading: {filename} - {percent_text} ({size_text})"
+                    
+                # Update the status label with proper font handling
+                self.status_label.config(text=status_text)
+                
+                # Force update of the UI
+                self.status_label.update_idletasks()
+                self.progress.update_idletasks()
+            else:
+                # If size is unknown, show indeterminate progress but still show filename
+                downloaded_mb = downloaded / 1024 / 1024
+                self.status_label.config(text=f"Downloading: {filename} - {downloaded_mb:.1f} MB (size unknown)")
+        
+        elif d['status'] == 'finished':
+            # Get filename information for the completed download
+            filename = d.get('filename', '').split('/')[-1].split('\\')[-1]
+            self.status_label.config(text=f"Download of {filename} finished. Processing file...", foreground="blue")
+            # Reset progress to show processing state
+            self.progress['value'] = 0
+            self.progress.update_idletasks()
+
+    def cancel_download(self):
+        """Cancel the current download process if one is in progress."""
+        print("Cancel download requested")
+        self.cancel_requested = True
+        self.download_cancelled = True
+        self.status_label.config(text="Cancelling download...", foreground="orange")
+        
+        # Disable the cancel button to prevent multiple cancellations
+        if hasattr(self, 'cancel_button'):
+            self.cancel_button.config(state=tk.DISABLED)
+
+    def download_thread(self, url, format_string, output_path):
         """Download thread that handles the actual downloading process."""
         try:
+            # Update status to show initial download preparation
+            self.parent.after(0, lambda: self.status_label.config(text=f"Preparing to download from {url}...", foreground="black"))
+            
             # Base options for yt-dlp
             ydl_opts = {
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'progress_hooks': [self.update_download_progress],
-                'verbose': True,   # Debug info enabled
-                'quiet': False,    # Debug info enabled
+                'verbose': True,  # Debug info enabled
+                'quiet': False,   # Debug info enabled
             }
             
             print("Download thread: yt-dlp options before format handling:")
@@ -636,183 +911,78 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 if format_string.startswith('-f '):
                     format_string = format_string[3:]
                 ydl_opts['format'] = format_string
-            
+                
             print("Download thread: Final yt-dlp options:")
             print(ydl_opts)
             print(f"Download thread: Executing yt-dlp for URL: {url}")
             print(f"Download thread: With format: {format_string}")
             
+            # Extract video info first to get the title
+            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                info_dict = ydl.extract_info(url, download=False)
+                video_title = info_dict.get('title', 'Unknown Title')
+                self.parent.after(0, lambda: self.status_label.config(text=f"Starting download: {video_title}", foreground="black"))
+            
+            # Check if user cancelled during info extraction
+            if hasattr(self, 'cancel_requested') and self.cancel_requested:
+                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="orange"))
+                self.parent.after(0, lambda: self.progress.config(value=0))
+                # Disable the cancel button
+                if hasattr(self, 'cancel_button'):
+                    self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
+                # Reset the cancel flag
+                self.cancel_requested = False
+                return  # Exit download_thread without calling on_download_complete
+                
             # Execute the download with yt-dlp, passing a list containing the URL string
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
                 
+            # If we get here, download completed successfully
+            self.parent.after(0, self.on_download_complete)
+                
         except Exception as e:
-            error_msg = f"Error downloading from {url}: {str(e)}"
-            self.status_label.config(text=error_msg, foreground="red")
-            print(error_msg)
-            time.sleep(2)
-        
-        # On completion, update UI
-        self.on_download_complete()
+            if str(e) == "Download cancelled by user":
+                # Handle cancellation gracefully
+                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="orange"))
+                self.parent.after(0, lambda: self.progress.config(value=0))
+                # Disable the cancel button
+                if hasattr(self, 'cancel_button'):
+                    self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
+                # Reset the cancel flag
+                self.cancel_requested = False
+            else:
+                error_msg = f"Error downloading from {url}: {str(e)}"
+                # Use after() to safely update UI from a thread
+                self.parent.after(0, lambda: self.status_label.config(text=error_msg, foreground="red"))
+                # Call on_download_complete for non-cancellation errors
+                self.parent.after(0, self.on_download_complete)
+            
+            print(f"Download error: {str(e)}")
 
     def on_download_complete(self):
         """Update UI when download is complete."""
-        self.status_label.config(text="Download complete!", foreground="green")
-        self.progress['value'] = 100
-################################################################################33
-    def update_download_progress(self, d):
-        """Update the UI with download progress information."""
-        if d['status'] == 'downloading':
-            # Extract progress information
-            percent = d.get('_percent_str', '0%')
-            speed = d.get('_speed_str', 'N/A')
-            eta = d.get('_eta_str', 'N/A')
-            
-            # Update progress bar if percentage is available
-            if '_percent_str' in d and d['_percent_str'].endswith('%'):
-                try:
-                    percent_value = float(d['_percent_str'].replace('%', ''))
-                    self.progress['value'] = percent_value
-                except ValueError:
-                    # If conversion fails, don't update the progress bar
-                    pass
-            
-            # Update status label with progress information
-            progress_text = f"Downloading: {percent} complete (Speed: {speed}, ETA: {eta})"
-            self.status_label.config(text=progress_text, foreground="blue")
-        
-        elif d['status'] == 'finished':
-            self.status_label.config(text="Download finished, processing file...", foreground="green")
+        # If download was cancelled, don't show the "Download complete" message
+        if not hasattr(self, 'download_cancelled') or not self.download_cancelled:
+            self.status_label.config(text="Download complete! Ready for next download.", foreground="green")
             self.progress['value'] = 100
-
-    def update_progress_hook(self, d):
-        """Hook function for yt-dlp to update progress bar."""
-        if self.download_cancelled:
-            return
-        
-        # Handle different status messages
-        if d['status'] == 'downloading':
-            try:
-                # Calculate percentage if total bytes are known
-                if d.get('total_bytes'):
-                    percent = d['downloaded_bytes'] / d['total_bytes'] * 100
-                # Use estimated total bytes if available
-                elif d.get('total_bytes_estimate'):
-                    percent = d['downloaded_bytes'] / d['total_bytes_estimate'] * 100
-                else:
-                    # If we can't calculate percentage, just show indeterminate progress
-                    percent = -1
-                
-                # Get download speed
-                speed = d.get('speed', 0)
-                if speed:
-                    speed_str = f"{speed/1024/1024:.2f} MB/s"
-                else:
-                    speed_str = "-- MB/s"
-                
-                # Get ETA
-                eta = d.get('eta', 0)
-                if eta:
-                    eta_str = f"ETA: {eta//60}m {eta%60}s"
-                else:
-                    eta_str = "ETA: --"
-                
-                # Format status message
-                status_msg = f"Downloading: {speed_str} {eta_str}"
-                
-                # Update progress bar and status in main thread
-                if percent >= 0:
-                    self.parent.after(0, lambda: self.progress.config(value=percent))
-                self.parent.after(0, lambda: self.status_label.config(
-                    text=status_msg, 
-                    foreground="blue"
-                ))
-                
-            except Exception as e:
-                # If something goes wrong with progress calculation, show generic message
-                self.parent.after(0, lambda: self.status_label.config(
-                    text=f"Downloading...", 
-                    foreground="blue"
-                ))
-        
-        elif d['status'] == 'finished':
-            # Update UI to show processing state
-            self.parent.after(0, lambda: self.progress.config(value=100))
-            self.parent.after(0, lambda: self.status_label.config(
-                text="Download complete, processing file...", 
-                foreground="green"
-            ))
-        
-        elif d['status'] == 'error':
-            # Show error message
-            self.parent.after(0, lambda: self.status_label.config(
-                text=f"Error: {d.get('error', 'Unknown error')}", 
-                foreground="red"
-            ))
-
-    def cancel_download(self):
-        """Cancel the current download."""
-        if self.is_downloading:
-            # Set cancellation flag
-            self.download_cancelled = True
-            
-            # Update UI
-            self.status_label.config(text="Cancelling download...", foreground="red")
-            
-            # Reset progress bar
-            self.progress['value'] = 0
-            
-            # Re-enable search button
-            if hasattr(self, 'search_button'):
-                self.search_button.config(state=tk.NORMAL)
-
-    def onn_download_complete(self, info=None):
-        """Handle actions when download is complete."""
-        if self.download_cancelled:
-            self.status_label.config(text="Download cancelled", foreground="red")
-            self.progress['value'] = 0
+            self.parent.bell()  # Simple bell sound
         else:
-            # Set progress to 100%
-            self.progress['value'] = 100
-            
-            # Get filename and title
-            title = info.get('title', 'Unknown') if info else 'Unknown'
-            filename = info.get('_filename', '') if info else ''
-            
-            # Update status with success message
-            self.status_label.config(
-                text=f"Download complete: {title[:30]}{'...' if len(title) > 30 else ''}", 
-                foreground="green"
-            )
-            
-            # Show a notification (optional)
-            try:
-                from tkinter import messagebox
-                messagebox.showinfo(
-                    "Download Complete", 
-                    f"Successfully downloaded:\n{title}"
-                )
-            except:
-                pass  # Skip notification if messagebox fails
+            # Leave the "Download cancelled" message visible
+            self.progress['value'] = 0
         
-        # Re-enable search button
-        if hasattr(self, 'search_button'):
-            self.search_button.config(state=tk.NORMAL)
-        
-        # Reset download flags
-        self.is_downloading = False
+        # Reset the cancel flag
+        self.cancel_requested = False
         self.download_cancelled = False
-
-    def _format_size(self, bytes):
-        """Format bytes to human-readable size."""
-        if bytes < 1024:
-            return f"{bytes} B"
-        elif bytes < 1024 * 1024:
-            return f"{bytes/1024:.1f} KB"
-        elif bytes < 1024 * 1024 * 1024:
-            return f"{bytes/(1024*1024):.1f} MB"
-        else:
-            return f"{bytes/(1024*1024*1024):.1f} GB"
+        
+        # Disable the cancel button
+        if hasattr(self, 'cancel_button'):
+            self.cancel_button.config(state=tk.DISABLED)
+        
+        # Force update of the UI
+        self.status_label.update_idletasks()
+        self.progress.update_idletasks()
+################################################################################33
 
     def _format_time(self, seconds):
         """Format seconds to human-readable time."""
@@ -823,74 +993,10 @@ class BeginnerDownloaderGUI(ttk.Frame):
         else:
             return f"{seconds//3600:.0f}h {(seconds%3600)//60:.0f}m"
 
-    def cancel_download(self):
-        """Cancel the current download."""
-        if self.is_downloading:
-            # Set flag to tell download thread to stop
-            self.is_downloading = False
-            
-            # Update UI
-            self.status_label.config(text="Cancelling download...", foreground="red")
-            
-            # Note: yt-dlp doesn't have a direct way to cancel downloads,
-            # so we rely on the download thread checking is_downloading
-            # at various points to stop the process.
-        else:
-            self.status_label.config(text="No active download to cancel", foreground="blue")
-
-    def on_download_complete(self):
-        """Handle actions when download is complete."""
-        # Update UI
-        self.status_label.config(text="Download complete!", foreground="green")
-        self.progress["value"] = 100
-        
-        # Reset download flag
-        self.is_downloading = False
-        
-        # Re-enable any download buttons
-        if hasattr(self, 'download_button'):
-            self.download_button.config(state=tk.NORMAL)
-        
-        # Optional: Play a sound or show a notification
-        # self.parent.bell()  # Simple bell sound
-        
-        # Optional: Show the file in explorer/finder
-        # if sys.platform == 'win32':
-        #     os.startfile(self.save_path_entry.get())
-        # elif sys.platform == 'darwin':  # macOS
-        #     subprocess.call(['open', self.save_path_entry.get()])
-        # else:  # Linux
-        #     subprocess.call(['xdg-open', self.save_path_entry.get()])
-
-
-    def paste_from_clipboard(self):
-        """Paste URL from clipboard to search bar using Tkinter's clipboard."""
-        clipboard_text = self.parent.clipboard_get()
-        self.search_entry.delete(0, tk.END)
-        self.search_entry.insert(0, clipboard_text)
-
-    def browse_save_location(self):
-        """Open a file dialog to choose the save location."""
-        from tkinter.filedialog import askdirectory
-        directory = askdirectory()
-        if directory:
-            self.save_path_entry.delete(0, tk.END)
-            self.save_path_entry.insert(0, directory)
-
     def play_video(self, url):
         """Open the video URL in a browser."""
         if url:
             webbrowser.open(url)
-
-    def cancel_search(self):
-        """Cancel the ongoing search operation and update the GUI."""
-        print("Search canceled.")  # This still prints to the terminal
-        
-        # Set the event to signal the search thread to stop
-        self.search_event.set()
-
-        # Ensure the GUI updates in the main thread
-        self.master.after(0, lambda: self.status_label.config(text="Search Canceled", foreground="red"))
 
 if __name__ == "__main__":
     parent = tk.Tk()
