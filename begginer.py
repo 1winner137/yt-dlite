@@ -1,3 +1,4 @@
+from tkinter import filedialog
 import yt_dlp
 import threading
 import webbrowser
@@ -576,28 +577,152 @@ class BeginnerDownloaderGUI(ttk.Frame):
         
         # Format options dictionaries
         video_format_options = [
-            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"),
+            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/mp4"),
             ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best"),
             ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best"),
             ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best"),
             ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best"),
-            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best")
+            ("MP4 - 240p", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[ext=mp4][height<=240]/best"),
+            ("MP4 - Smallest Size", "worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst"),
+            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best"),
+            ("WebM - 1080p", "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best"),
+            ("WebM - 720p", "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best"),
+            ("WebM - 480p", "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best"),
+            ("WebM - 360p", "bestvideo[ext=webm][height<=360]+bestaudio[ext=webm]/best[ext=webm][height<=360]/best"),
+            ("WebM - 240p", "bestvideo[ext=webm][height<=240]+bestaudio[ext=webm]/best[ext=webm][height<=240]/best"),
+            ("MKV - Best Quality", "bestvideo+bestaudio/best")
         ]
-        
+
         audio_format_options = [
-            ("MP3 - 320kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 320K"),
-            ("MP3 - 192kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 192K"),
-            ("MP3 - 128kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 128K"),
-            ("M4A - Best Quality", "bestaudio/best -x --audio-format m4a --audio-quality 0"),
-            ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0")
+            ("MP3 - 320kbps", "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 320K --prefer-ffmpeg --embed-thumbnail --add-metadata"),
+            ("MP3 - 192kbps", "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 192K --prefer-ffmpeg --embed-thumbnail --add-metadata"),
+            ("MP3 - 128kbps", "-f ba[ext=m4a]/ba/best --extract-audio --audio-format mp3 --audio-quality 128K --prefer-ffmpeg --embed-thumbnail --add-metadata"),
+            ("M4A - High Quality", "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 0 --embed-thumbnail --add-metadata"),
+            ("M4A - Medium Quality", "-f ba[ext=m4a]/ba/best --extract-audio --audio-format m4a --audio-quality 2 --embed-thumbnail --add-metadata"),
+            ("OGG - High Quality", "-f ba[ext=vorbis]/ba/best --extract-audio --audio-format vorbis --audio-quality 0 --embed-thumbnail --add-metadata"),
+            ("OPUS - Best Quality", "-f ba/ba/best --extract-audio --audio-format opus --audio-quality 0 --embed-thumbnail --add-metadata"),
+            ("FLAC - Lossless", "-f ba/ba/best --extract-audio --audio-format flac --embed-thumbnail --add-metadata"),
+            ("WAV - Uncompressed", "-f ba/ba/best --extract-audio --audio-format wav --embed-thumbnail --add-metadata")
         ]
         
         # Subtitle language options
         subtitle_language_options = [
             ("English", "en"),
+            ("Afrikaans", "af"),
+            ("Albanian", "sq"),
+            ("Amharic", "am"),
+            ("Arabic", "ar"),
+            ("Armenian", "hy"),
+            ("Azerbaijani", "az"),
+            ("Bangla", "bn"),
+            ("Basque", "eu"),
+            ("Belarusian", "be"),
+            ("Bosnian", "bs"),
+            ("Bulgarian", "bg"),
+            ("Burmese", "my"),
+            ("Catalan", "ca"),
+            ("Cebuano", "ceb"),
+            ("Chinese (Simplified)", "zh-Hans"),
+            ("Chinese (Traditional)", "zh-Hant"),
+            ("Corsican", "co"),
+            ("Croatian", "hr"),
+            ("Czech", "cs"),
+            ("Danish", "da"),
+            ("Dutch", "nl"),
+            ("English (Auto-generated)", "en-auto"),
+            ("English (UK)", "en-GB"),
+            ("English (US)", "en-US"),
+            ("Esperanto", "eo"),
+            ("Estonian", "et"),
+            ("Filipino", "fil"),
+            ("Finnish", "fi"),
+            ("French", "fr"),
+            ("French (Canada)", "fr-CA"),
+            ("Galician", "gl"),
+            ("Georgian", "ka"),
             ("German", "de"),
+            ("Greek", "el"),
+            ("Gujarati", "gu"),
+            ("Haitian Creole", "ht"),
+            ("Hausa", "ha"),
+            ("Hawaiian", "haw"),
+            ("Hebrew", "he"),
+            ("Hindi", "hi"),
+            ("Hmong", "hmn"),
+            ("Hungarian", "hu"),
+            ("Icelandic", "is"),
+            ("Igbo", "ig"),
+            ("Indonesian", "id"),
+            ("Irish", "ga"),
+            ("Italian", "it"),
+            ("Japanese", "ja"),
+            ("Javanese", "jv"),
+            ("Kannada", "kn"),
+            ("Kazakh", "kk"),
+            ("Khmer", "km"),
+            ("Korean", "ko"),
+            ("Kurdish", "ku"),
+            ("Kyrgyz", "ky"),
+            ("Lao", "lo"),
+            ("Latin", "la"),
+            ("Latvian", "lv"),
+            ("Lithuanian", "lt"),
+            ("Luxembourgish", "lb"),
+            ("Macedonian", "mk"),
+            ("Malagasy", "mg"),
+            ("Malay", "ms"),
+            ("Malayalam", "ml"),
+            ("Maltese", "mt"),
+            ("Maori", "mi"),
+            ("Marathi", "mr"),
+            ("Mongolian", "mn"),
+            ("Nepali", "ne"),
+            ("Norwegian", "no"),
+            ("Nyanja", "ny"),
+            ("Odia", "or"),
+            ("Pashto", "ps"),
+            ("Persian", "fa"),
+            ("Polish", "pl"),
+            ("Portuguese", "pt"),
+            ("Portuguese (Brazil)", "pt-BR"),
+            ("Portuguese (Portugal)", "pt-PT"),
+            ("Punjabi", "pa"),
+            ("Romanian", "ro"),
+            ("Russian", "ru"),
+            ("Samoan", "sm"),
+            ("Scots Gaelic", "gd"),
+            ("Serbian", "sr"),
+            ("Sesotho", "st"),
+            ("Shona", "sn"),
+            ("Sindhi", "sd"),
+            ("Sinhala", "si"),
+            ("Slovak", "sk"),
+            ("Slovenian", "sl"),
+            ("Somali", "so"),
+            ("Spanish", "es"),
+            ("Spanish (Latin America)", "es-419"),
+            ("Spanish (Mexico)", "es-MX"),
+            ("Spanish (Spain)", "es-ES"),
+            ("Sundanese", "su"),
             ("Swahili", "sw"),
-            ("Auto-generated (English)", "en-auto")
+            ("Swedish", "sv"),
+            ("Tajik", "tg"),
+            ("Tamil", "ta"),
+            ("Telugu", "te"),
+            ("Thai", "th"),
+            ("Turkish", "tr"),
+            ("Turkmen", "tk"),
+            ("Ukrainian", "uk"),
+            ("Urdu", "ur"),
+            ("Uzbek", "uz"),
+            ("Vietnamese", "vi"),
+            ("Welsh", "cy"),
+            ("Western Frisian", "fy"),
+            ("Xhosa", "xh"),
+            ("Yiddish", "yi"),
+            ("Yoruba", "yo"),
+            ("Zulu", "zu"),
+            ("All Languages", "all")
         ]
         
         # Variables for selections
@@ -867,7 +992,13 @@ class BeginnerDownloaderGUI(ttk.Frame):
         """Download thread that handles the actual downloading process."""
         try:
             # Update status to show initial download preparation
-            self.parent.after(0, lambda: self.status_label.config(text=f"Preparing to download from {url}...", foreground="black"))
+            self.parent.after(0, lambda: self.status_label.config(text="Preparing for download...", foreground="black"))
+            
+            # Set up a timer for periodic updates
+            self.fetch_start_time = time.time()
+            self.update_timer_active = True
+            self.status_phase = "preparing"  # Track which phase we're in
+            self.schedule_status_update()
             
             # Base options for yt-dlp
             ydl_opts = {
@@ -906,6 +1037,25 @@ class BeginnerDownloaderGUI(ttk.Frame):
                         'preferredquality': '0',
                     }]
                     ydl_opts['extractaudio'] = True
+                elif 'opus' in format_string.lower():
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'opus',
+                        'preferredquality': '0',
+                    }]
+                    ydl_opts['extractaudio'] = True
+                elif 'flac' in format_string.lower():
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'flac',
+                    }]
+                    ydl_opts['extractaudio'] = True
+                elif 'wav' in format_string.lower():
+                    ydl_opts['postprocessors'] = [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'wav',
+                    }]
+                    ydl_opts['extractaudio'] = True
             else:
                 # For video, if the format string has a '-f ' prefix, remove it.
                 if format_string.startswith('-f '):
@@ -921,6 +1071,9 @@ class BeginnerDownloaderGUI(ttk.Frame):
             with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
                 info_dict = ydl.extract_info(url, download=False)
                 video_title = info_dict.get('title', 'Unknown Title')
+                
+                # Switch to download phase - this stops the preparing/processing/taking longer messages
+                self.status_phase = "downloading"
                 self.parent.after(0, lambda: self.status_label.config(text=f"Starting download: {video_title}", foreground="black"))
             
             # Check if user cancelled during info extraction
@@ -932,6 +1085,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
                     self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
                 # Reset the cancel flag
                 self.cancel_requested = False
+                self.update_timer_active = False
                 return  # Exit download_thread without calling on_download_complete
                 
             # Execute the download with yt-dlp, passing a list containing the URL string
@@ -939,9 +1093,13 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 ydl.download([url])
                 
             # If we get here, download completed successfully
+            self.update_timer_active = False
             self.parent.after(0, self.on_download_complete)
                 
         except Exception as e:
+            # Stop the periodic updates in case of error
+            self.update_timer_active = False
+            
             if str(e) == "Download cancelled by user":
                 # Handle cancellation gracefully
                 self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="orange"))
@@ -959,6 +1117,48 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 self.parent.after(0, self.on_download_complete)
             
             print(f"Download error: {str(e)}")
+
+    def schedule_status_update(self):
+        """Schedule periodic status updates with changing messages based on elapsed time."""
+        if not hasattr(self, 'update_timer_active') or not self.update_timer_active:
+            return
+        
+        # Calculate elapsed time (always happens in background)
+        elapsed_time = time.time() - self.fetch_start_time
+        elapsed_seconds = int(elapsed_time)
+        elapsed_time_text = f" (elapsed: {elapsed_seconds // 60}m {elapsed_seconds % 60}s)"
+        
+        # Only update the preparation phase messages if we're in that phase
+        if hasattr(self, 'status_phase') and self.status_phase == "preparing":
+            # Update status message based on elapsed time
+            if elapsed_seconds < 15:
+                status_message = "Preparing for download..."
+            elif elapsed_seconds < 30:
+                status_message = "Processing..."
+            else:
+                status_message = "Taking longer than expected... still working"
+                # We've reached the final status message, so let's stop changing it
+                self.status_phase = "waiting"  # Change phase to stop message updates
+            
+            # Add elapsed time to the message and update UI
+            full_message = status_message + elapsed_time_text
+            self.parent.after(0, lambda: self.status_label.config(text=full_message, foreground="blue"))
+        elif hasattr(self, 'status_phase') and self.status_phase == "downloading":
+            # In download phase, progress updates are handled by update_download_progress
+            # Just update the elapsed time counter in the UI if needed
+            current_text = self.status_label.cget("text")
+            if "elapsed:" in current_text:
+                base_text = current_text.split(" (elapsed:")[0]
+                self.parent.after(0, lambda: self.status_label.config(text=base_text + elapsed_time_text))
+        elif hasattr(self, 'status_phase') and self.status_phase == "waiting":
+            # We're in the "Taking longer than expected" phase - just update the time
+            self.parent.after(0, lambda: self.status_label.config(
+                text=f"Taking longer than expected... still working{elapsed_time_text}", 
+                foreground="blue"
+            ))
+        
+        # Schedule the next update in 1 second
+        self.parent.after(1000, self.schedule_status_update)
 
     def on_download_complete(self):
         """Update UI when download is complete."""
