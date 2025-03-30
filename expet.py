@@ -27,10 +27,10 @@ class RedirectText:
         self.original_stdout.flush()
 
 class YTDLPSimpleGui:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("YT-DLP GUI")
-        self.root.geometry("750x600")
+    def __init__(self, parent):
+        self.parent = parent
+        self.parent.title("YT-DLP GUI")
+        self.parent.geometry("750x600")
         
         # Queue for terminal output
         self.terminal_queue = queue.Queue()
@@ -40,7 +40,7 @@ class YTDLPSimpleGui:
         os.makedirs(self.download_folder, exist_ok=True)
         
         # Create main frame
-        main_frame = ttk.Frame(root, padding="10")
+        main_frame = ttk.Frame(parent, padding="10")
         main_frame.pack(fill='both', expand=True)
         
         # Create downloader section
@@ -252,7 +252,7 @@ class YTDLPSimpleGui:
         sys.stderr = self.redirect
 
     def paste_clipboard(self):
-        clipboard_text = self.root.clipboard_get()
+        clipboard_text = self.parent.clipboard_get()
         self.cmd_entry.delete(0, tk.END)
         self.cmd_entry.insert(0, clipboard_text)
 
@@ -270,7 +270,7 @@ class YTDLPSimpleGui:
             pass
         
         # Schedule the next update
-        self.root.after(100, self.update_terminal)
+        self.parent.after(100, self.update_terminal)
     
     def toggle_terminal_visibility(self):
         if self.show_terminal.get():
@@ -350,8 +350,8 @@ class YTDLPSimpleGui:
                     break
             
             if not url:
-                self.root.after(0, lambda: self.status_label.config(text="No URL found in command"))
-                self.root.after(0, lambda: self.cancel_btn.config(state='disabled'))
+                self.parent.after(0, lambda: self.status_label.config(text="No URL found in command"))
+                self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
                 self.download_in_progress = False
                 return
             
@@ -380,15 +380,15 @@ class YTDLPSimpleGui:
                             ydl.download([url])
                     
                     if self.current_process['active']:
-                        self.root.after(0, lambda: self.status_label.config(text="Download completed!"))
+                        self.parent.after(0, lambda: self.status_label.config(text="Download completed!"))
                 except Exception as e:
                     if self.current_process['active']:
-                        self.root.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
+                        self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
                         print(f"Download error: {str(e)}")
                 finally:
                     self.current_process = None
                     self.download_in_progress = False
-                    self.root.after(0, lambda: self.cancel_btn.config(state='disabled'))
+                    self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
             
             # Start the actual download process
             download_thread = threading.Thread(target=download_with_ydl)
@@ -396,8 +396,8 @@ class YTDLPSimpleGui:
             download_thread.start()
                 
         except Exception as e:
-            self.root.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
-            self.root.after(0, lambda: self.cancel_btn.config(state='disabled'))
+            self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
+            self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
             self.download_in_progress = False
             print(f"Command execution error: {str(e)}")
         
@@ -607,7 +607,7 @@ class YTDLPSimpleGui:
             self.monitor_process()
             
         except Exception as e:
-            self.root.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
+            self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
             print(f"Conversion error: {str(e)}")
             self.cleanup_conversion()
 
@@ -629,21 +629,21 @@ class YTDLPSimpleGui:
                     hours, minutes, seconds = map(int, time_match.groups())
                     current_time = hours * 3600 + minutes * 60 + seconds
                     progress = (current_time / self.total_duration) * 100
-                    self.root.after(0, lambda p=progress: self.update_conversion_progress(p))
+                    self.parent.after(0, lambda p=progress: self.update_conversion_progress(p))
             
             # Check if process was completed successfully
             returncode = self.current_process.wait()
             
             if returncode == 0:
-                self.root.after(0, lambda: self.status_label.config(text=f"Conversion completed successfully"))
-                self.root.after(0, lambda: self.progress_bar.config(value=100))
+                self.parent.after(0, lambda: self.status_label.config(text=f"Conversion completed successfully"))
+                self.parent.after(0, lambda: self.progress_bar.config(value=100))
                 print(f"Conversion completed successfully: {self.current_output_file}")
             else:
-                self.root.after(0, lambda: self.status_label.config(text="Conversion failed"))
+                self.parent.after(0, lambda: self.status_label.config(text="Conversion failed"))
                 print("Conversion failed")
                 
         except Exception as e:
-            self.root.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
+            self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
             print(f"Monitoring error: {str(e)}")
         finally:
             self.cleanup_conversion()
@@ -652,9 +652,9 @@ class YTDLPSimpleGui:
         """Clean up after conversion is done"""
         self.current_process = None
         self.conversion_in_progress = False
-        self.root.after(0, lambda: self.progress_bar.stop())
-        self.root.after(0, lambda: self.progress_bar.config(mode='determinate'))
-        self.root.after(0, lambda: self.cancel_btn.config(state='disabled'))
+        self.parent.after(0, lambda: self.progress_bar.stop())
+        self.parent.after(0, lambda: self.progress_bar.config(mode='determinate'))
+        self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
 
     def cancel_conversion(self):
         """Cancel the ongoing conversion"""
@@ -684,17 +684,17 @@ class YTDLPSimpleGui:
                 eta = d.get('_eta_str', '?')
                 filename = d.get('filename', '').split('/')[-1].split('\\')[-1]
                 
-                self.root.after(0, lambda: self.progress_bar.config(value=percent_float))
-                self.root.after(0, lambda: self.status_label.config(
+                self.parent.after(0, lambda: self.progress_bar.config(value=percent_float))
+                self.parent.after(0, lambda: self.status_label.config(
                     text=f"Downloading {filename}: {percent}% (Speed: {speed}, ETA: {eta})"
                 ))
             except Exception as e:
                 # Handle case where percent can't be converted
-                self.root.after(0, lambda: self.status_label.config(text="Downloading..."))
+                self.parent.after(0, lambda: self.status_label.config(text="Downloading..."))
                 print(f"Progress update error: {str(e)}")
         elif d['status'] == 'finished':
-            self.root.after(0, lambda: self.progress_bar.config(value=100))
-            self.root.after(0, lambda: self.status_label.config(text="Processing file..."))
+            self.parent.after(0, lambda: self.progress_bar.config(value=100))
+            self.parent.after(0, lambda: self.status_label.config(text="Processing file..."))
     
     def cancel_operation(self):
         # Cancel download operation
@@ -753,6 +753,6 @@ class YTLogger:
             print(f"[error] {msg}")
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = YTDLPSimpleGui(root)
-    root.mainloop()
+    parent = tk.Tk()
+    app = YTDLPSimpleGui(parent)
+    parent.mainloop()
