@@ -10,53 +10,78 @@ import datetime
 import functools
 import webbrowser
 from misc import PlaylistHandler
-from begginer import BeginnerDownloaderGUI  # Import the class
-class YouTubeDownloaderGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Yt-dlite Downloader")
-        self.root.geometry("850x580")
-        self.root.resizable(True, True)
-        self.root.minsize(800, 550)
-        self.fetch_cancelled = False
-##
-        
-        # Create notebook for tabs
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Create tabs
-        self.main_tab = ttk.Frame(self.notebook)
-        self.verbose_tab = ttk.Frame(self.notebook)
-        self.downloads_tab = ttk.Frame(self.notebook)
-        self.beginner_tab = BeginnerDownloaderGUI(self.notebook)  # Attach BeginnerDownloaderGUI as a tab
+from begginer import BeginnerDownloaderGUI
+from expert import YTDLPSimpleGui
 
-        self.notebook.add(self.beginner_tab, text="Beginner Mode")         
-        self.notebook.add(self.main_tab, text="Main")
-        self.notebook.add(self.verbose_tab, text="Log")
-        self.notebook.add(self.downloads_tab, text="Downloads")
-
-##
-        # Theme state
-        self.dark_mode = False
-
-        self.sort_state = {
-            "format_tree": {"column": "resolution", "direction": "asc"},
-            "downloads_tree": {"column": "date", "direction": "desc"}
-        }
+class YouTubeDownloaderGUI: 
+    def __init__(self, root): 
+        self.root = root 
+        self.root.title("Yt-dlite Downloader") 
+        self.root.geometry("850x580") 
+        self.root.resizable(True, True) 
+        self.root.minsize(800, 550) 
+        self.fetch_cancelled = False 
+         
+        # Tab mode state 
+        self.expert_mode = True  # Start with expert mode (Main tab) 
+         
+        # Theme state 
+        self.dark_mode = False 
+ 
+        self.sort_state = { 
+            "format_tree": {"column": "resolution", "direction": "asc"}, 
+            "downloads_tree": {"column": "date", "direction": "desc"} 
+        } 
+         
+        # Create notebook for tabs 
+        self.notebook = ttk.Notebook(self.root) 
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10) 
+         
+        # Create tabs 
+        self.main_tab = ttk.Frame(self.notebook) 
+        self.verbose_tab = ttk.Frame(self.notebook) 
+        self.downloads_tab = ttk.Frame(self.notebook) 
+        self.beginner_tab = BeginnerDownloaderGUI(self.notebook)  # Attach BeginnerDownloaderGUI as a tab 
+ 
+        self.notebook.add(self.beginner_tab, text="Home")          
+        self.notebook.add(self.main_tab, text="Main") 
+        self.notebook.add(self.verbose_tab, text="Log") 
+        self.notebook.add(self.downloads_tab, text="Downloads") 
+         
+        # Initial theme setup - moved after notebook creation 
+        self.setup_theme(dark_mode=False) 
+                 
+        self.theme_button = ttk.Button( 
+            root,  
+            text="🌙 Dark Mode",  
+            command=self.toggle_theme, 
+            style="Theme.TButton" 
+        ) 
+        self.theme_button.place(relx=1.0, y=5, anchor="ne", x=-10) 
+         
+        # Create a frame layout for the main tab with top and bottom sections
+        self.main_content_frame = ttk.Frame(self.main_tab)
+        self.main_content_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Initial theme setup
-        self.setup_theme(dark_mode=False)
-                
-        self.theme_button = ttk.Button(
-            root, 
-            text="🌙 Dark Mode", 
-            command=self.toggle_theme,
+        # Create container frame for dynamic content (in the main content area)
+        self.container_frame = ttk.Frame(self.main_content_frame)
+        self.container_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Position the switch button at the right center of the window instead of bottom
+        self.switch_button = ttk.Button(
+            self.root,  # Changed from self.bottom_frame to self.root
+            text="Switch to Expert mode",
+            command=self.switch_ui,
             style="Theme.TButton"
         )
-        self.theme_button.place(relx=1.0, y=5, anchor="ne", x=-10)
+        # Place the button at the right center using place geometry manager
+        self.switch_button.place(relx=0.5, rely=1, anchor="e", x=10)
+               
+        # Bind tab change event
+        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
         
-        self.setup_main_tab()
+        # Setup all tabs
+        self.load_main_ui()
         self.setup_verbose_tab()
         self.setup_downloads_tab()
         
@@ -76,7 +101,9 @@ class YouTubeDownloaderGUI:
         self.log_level = "INFO"  # Can be INFO, DEBUG, or ERROR
         self.log("Application started", "INFO")
         
-    
+        # Now that all attributes are initialized, update button visibility
+        self.on_tab_changed(None)
+
     def setup_theme(self, dark_mode=False):
         """Configure application theme based on mode"""
         self.dark_mode = dark_mode
@@ -190,7 +217,7 @@ class YouTubeDownloaderGUI:
                          background=bg_color,
                          foreground=fg_color,
                          font=("Arial", 9, "bold"))
-    
+
     def toggle_theme(self):
         """Toggle between dark and light mode"""
         new_mode = not self.dark_mode
@@ -205,22 +232,129 @@ class YouTubeDownloaderGUI:
         # Log theme change
         theme_name = "Dark" if new_mode else "Light"
         self.log(f"Switched to {theme_name} mode", "INFO")
-    #Main tab start here
+    
+    def switch_ui(self):
+        """Switch between Hello World UI and Expert Mode."""
+        # Toggle expert mode
+        new_mode = not self.expert_mode if hasattr(self, "expert_mode") else True
+        self.expert_mode = new_mode
+        
+        # Clear the container frame
+        for widget in self.container_frame.winfo_children():
+            widget.destroy()
+        
+        # Load appropriate UI based on new mode
+        if new_mode:
+            self.load_main_ui()
+            self.switch_button.config(text="Switch to Expert mode")
+        else:
+            self.load_hello()
+            self.switch_button.config(text="Switch to Professional Mode")
+        
+        # Log UI change
+        ui_name = "Professional" if new_mode else "Expert"
+        if hasattr(self, "log"):
+            self.log(f"Switched to {ui_name} UI", "INFO")
+    
+    def on_tab_changed(self, event):
+        """Update button visibility based on active tab"""
+        current_tab = self.notebook.index(self.notebook.select())
+        
+        # Show or hide the switch button depending on if we're in the main tab
+        if current_tab == 1:  # Main tab
+            # Make sure the switch button is visible only on the main tab
+            self.switch_button.place(relx=1.0, y=10, anchor="ne", x=-10)
+        else:
+            # Hide the switch button on other tabs
+            self.switch_button.place_forget()
+            
     def setup_main_tab(self):
-        """Set up the main tab with all the primary controls"""
-        # Create a main container frame with height management
-        main_frame = ttk.Frame(self.main_tab, padding="5")
+        """Set up the main tab container and switch UI between Main and Expert Mode."""
+        # Create a container frame for dynamic UI switching
+        self.container_frame = ttk.Frame(self.main_tab, padding="5")
+        self.container_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Initially load the main UI content
+        self.load_main_ui()
+        
+        # Add a switch button (placed outside container_frame)
+        self.switch_button = ttk.Button(self.main_tab, text="Switch to Expert Mode", command=self.switch_ui)
+        self.switch_button.pack(pady=5)
+    #Main tab start here
+    def load_hello(self):
+        import os
+        import tkinter as tk
+        from tkinter import ttk
+        import queue
+        import sys
+        from expert import YTDLPSimpleGui, RedirectText
+        
+        # Create a wrapper class that modifies the initialization
+        class FrameYTDLPGui(YTDLPSimpleGui):
+            def __init__(self, frame):
+                # Store the frame
+                self.parent = frame
+                
+                # Skip the title and geometry calls
+                # Create queue for terminal output
+                self.terminal_queue = queue.Queue()
+                
+                # Set default download folder
+                self.download_folder = os.path.join(os.path.expanduser("~"), "Downloads", "yt-dlite")
+                os.makedirs(self.download_folder, exist_ok=True)
+                
+                # Use the frame directly instead of creating a new main frame
+                main_frame = frame
+                
+                # Create downloader section
+                self.create_downloader_section(main_frame)
+                
+                # Create separator
+                ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=10)
+                
+                # Create converter section
+                self.create_converter_section(main_frame)
+                
+                # Create separator
+                ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=10)
+                
+                # Add terminal output section
+                self.create_terminal_section(main_frame)
+                
+                # Set up output redirection
+                self.setup_stdout_redirection()
+                
+                # Start terminal update loop
+                self.update_terminal()
+                
+                # Create save location and progress section
+                self.create_save_progress_section(main_frame)
+                
+                # Download and conversion flags
+                self.download_in_progress = False
+                self.conversion_in_progress = False
+        
+        # Create an instance of our wrapper class
+        self.ytdl_gui = FrameYTDLPGui(self.container_frame)
+        
+        # Ensure the container frame expands properly
+        self.container_frame.pack(fill='both', expand=True)
+
+    def load_main_ui(self):
+        """Set up the main tab with all the primary controls in the container frame"""
+        # Create frames inside the container_frame instead of main_tab
+        main_frame = ttk.Frame(self.container_frame, padding="5")
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Top frame for URL and media type.
         top_frame = ttk.Frame(main_frame)
         top_frame.pack(fill=tk.X, pady=(0, 5), ipady=5)
-
+        
         # URL input with quick paste button
         url_frame = ttk.Frame(top_frame)
         url_frame.pack(fill=tk.X, pady=(0, 5))
         url_frame.columnconfigure(1, weight=1)
-
+        
         ttk.Label(url_frame, text="Video URL:", font=("Helvetica", 10, "bold")).pack(side=tk.LEFT, padx=5)
 
         self.url_entry = ttk.Entry(url_frame, width=70, font=("Helvetica", 10))
@@ -948,6 +1082,7 @@ class YouTubeDownloaderGUI:
         except Exception as e:
             self.log(f"Error loading thumbnail: {str(e)}", "ERROR")
             self.root.after(0, self.clear_thumbnail)
+            
     def clear_thumbnail(self):
         """Clear the thumbnail display"""
         self.thumbnail_image = None
