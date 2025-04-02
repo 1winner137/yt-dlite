@@ -30,7 +30,7 @@ class YTDLPSimpleGui:
     def __init__(self, parent):
         self.parent = parent
         self.parent.title("YT-DLP GUI")
-        self.parent.geometry("750x600")
+        self.parent.geometry("750x540")
         
         # Queue for terminal output
         self.terminal_queue = queue.Queue()
@@ -47,13 +47,13 @@ class YTDLPSimpleGui:
         self.create_downloader_section(main_frame)
         
         # Create separator
-        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=10)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=5)
         
         # Create converter section
         self.create_converter_section(main_frame)
         
         # Create separator
-        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=10)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=5)
         
         
         # Add terminal output section
@@ -190,7 +190,7 @@ class YTDLPSimpleGui:
     def create_terminal_section(self, parent):
         # Terminal frame
         terminal_frame = ttk.LabelFrame(parent, text="Terminal Output")
-        terminal_frame.pack(fill='both', expand=True, pady=10)
+        terminal_frame.pack(fill='both', expand=True, pady=5)
         
         # Add toggle button for terminal visibility
         toggle_frame = ttk.Frame(terminal_frame)
@@ -229,7 +229,7 @@ class YTDLPSimpleGui:
                 
         # Progress bar
         self.progress_bar = ttk.Progressbar(parent, mode='determinate')
-        self.progress_bar.pack(fill='x', pady=10)
+        self.progress_bar.pack(fill='x', pady=5)
 
         # Status label (centered)
         self.status_label = ttk.Label(parent, text="Ready")
