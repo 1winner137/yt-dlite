@@ -26,7 +26,7 @@ class RedirectText:
     def flush(self):
         self.original_stdout.flush()
 
-class YTDLPSimpleGui:
+class ExpertGui:
     def __init__(self, parent):
         self.parent = parent
         self.parent.title("YT-DLP GUI")
@@ -150,8 +150,8 @@ class YTDLPSimpleGui:
             self.file_entry.insert(0, file_path)
             self.update_format_options()
 
+    #Update format options based on the input file type
     def update_format_options(self, event=None):
-        """Update format options based on the input file type"""
         input_file = self.file_entry.get()
         if not input_file or not os.path.exists(input_file):
             return
@@ -213,8 +213,8 @@ class YTDLPSimpleGui:
         self.terminal_text.pack(fill='both', expand=True, padx=5, pady=5)
         self.terminal_text.config(state=tk.DISABLED)
     
+    #saving location frame
     def create_save_progress_section(self, parent):
-        # Save location frame
         save_frame = ttk.Frame(parent)
         save_frame.pack(fill='x', pady=5)
         
@@ -255,9 +255,8 @@ class YTDLPSimpleGui:
         clipboard_text = self.parent.clipboard_get()
         self.cmd_entry.delete(0, tk.END)
         self.cmd_entry.insert(0, clipboard_text)
-
+    # Process any pending output in the queue
     def update_terminal(self):
-        # Process any pending output in the queue
         try:
             while True:
                 line = self.terminal_queue.get_nowait()
@@ -268,7 +267,6 @@ class YTDLPSimpleGui:
                 self.terminal_queue.task_done()
         except queue.Empty:
             pass
-        
         # Schedule the next update
         self.parent.after(100, self.update_terminal)
     
@@ -311,7 +309,7 @@ class YTDLPSimpleGui:
             args = shlex.split(command)
             full_command.extend(args)
         except Exception:
-            # Fall back to simple splitting if shlex fails
+            # Fall back to simple splitting if shlex fails, just for flexibility
             full_command.extend(command.split())
         
         # Add output template if not specified
@@ -328,12 +326,8 @@ class YTDLPSimpleGui:
         self.progress_bar['value'] = 0
         self.status_label.config(text="Starting download...")
         self.cancel_btn.config(state='normal')
-        
-        # Set flag
-        self.download_in_progress = True
-        
-        # Print the command being executed
-        print(f"Executing: {' '.join(full_command)}")
+        self.download_in_progress = True # Set flag
+        print(f"Executing: {' '.join(full_command)}") # Print the command being executed
         
         # Start thread
         self.download_thread = threading.Thread(target=self.run_command, args=(full_command,))
@@ -413,7 +407,7 @@ class YTDLPSimpleGui:
         
         output_format = self.output_format.get()
         output_dir = self.save_location.get()
-        quality_preset = self.quality_preset.get()  # Get selected quality preset
+        quality_preset = self.quality_preset.get()
         
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -447,8 +441,7 @@ class YTDLPSimpleGui:
 
     def convert_file(self, input_file, output_file, output_format, quality_preset):
         try:
-            # Store the output file path as an instance variable so it's accessible in monitor_process
-            self.current_output_file = output_file
+            self.current_output_file = output_file #storing output path as a variable so that it is widely accessible
             
             # Determine input type (audio or video)
             probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', 
@@ -475,7 +468,8 @@ class YTDLPSimpleGui:
             
             # Handle format-specific options based on quality preset
             if is_audio_output:
-                # Audio settings based on quality presets
+                # Audio settings based on quality presets, this are some of command you can add or modify base on your understanding on ffmpeg
+                # Not all commands are fully tested
                 if output_format == 'mp3':
                     if quality_preset == 'High':
                         cmd.extend(['-c:a', 'libmp3lame', '-ar', '48000', '-ac', '2', '-b:a', '320k'])
@@ -611,8 +605,8 @@ class YTDLPSimpleGui:
             print(f"Conversion error: {str(e)}")
             self.cleanup_conversion()
 
+    #Monitor the FFmpeg process output and update progress
     def monitor_process(self):
-        """Monitor the FFmpeg process output and update progress"""
         try:
             # Handle process output in real-time
             for line in self.current_process.stderr:
@@ -648,19 +642,18 @@ class YTDLPSimpleGui:
         finally:
             self.cleanup_conversion()
 
+    #Clean up after conversion is done
     def cleanup_conversion(self):
-        """Clean up after conversion is done"""
         self.current_process = None
         self.conversion_in_progress = False
         self.parent.after(0, lambda: self.progress_bar.stop())
         self.parent.after(0, lambda: self.progress_bar.config(mode='determinate'))
         self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
 
+    #Cancel the ongoing conversion
     def cancel_conversion(self):
-        """Cancel the ongoing conversion"""
         if self.current_process and self.conversion_in_progress:
-            print("Cancelling conversion...")
-            
+            print("Cancelling conversion...")            
             # Terminate the process
             if self.current_process:
                 self.current_process.terminate()
@@ -754,5 +747,5 @@ class YTLogger:
 
 if __name__ == "__main__":
     parent = tk.Tk()
-    app = YTDLPSimpleGui(parent)
+    app = ExpertGui(parent)
     parent.mainloop()
