@@ -132,7 +132,7 @@ class PlaylistHandler:
         self.size_calculation_thread = threading.Thread(target=self.calculate_playlist_size, daemon=True)
         self.size_calculation_thread.start()        
         self.format_dialog.protocol("WM_DELETE_WINDOW", self.on_cancel_button)        
-        # Wait for user input, even if he\she wish to do tommorow
+        # Wait for user input, even if he\she wish to do tommorow! Hah funny
         self.root.wait_window(self.format_dialog)
         return self.selected_format is not None
 
