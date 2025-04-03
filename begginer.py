@@ -157,6 +157,7 @@ class HomeGui(ttk.Frame):
             self.status_label.config(text="Single video detected! Processing...", foreground="blue")
             self.create_download_button(url)
             self.status_label.config(text="Video ready for download!", foreground="green")
+            self.open_format_selection_popup(url)
 
     def process_playlist(self, url):
         if self.search_event.is_set():  # Stop if the event is set
@@ -474,8 +475,7 @@ class HomeGui(ttk.Frame):
         if isinstance(url, dict):
             valid_url = url.get('url', '')
             print(f"Extracted valid URL: {valid_url}")
-            url = valid_url  # Now 'url' contains just the valid video link.        
-        # Continue to create the download options using the extracted URL
+            url = valid_url   
             self.open_format_selection_popup(url)
 
     def open_format_selection_popup(self, url):
@@ -699,7 +699,7 @@ class HomeGui(ttk.Frame):
                     return lang_code
             return "en"  # Default to English if other language not found
         
-    #"Start the download process with the selected format options   
+    #Start the download process with the selected format options   
     def start_download(self, url, format_string, output_path):
         if not os.path.exists(output_path):
             os.makedirs(output_path)
