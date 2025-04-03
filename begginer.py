@@ -1,51 +1,48 @@
-from tkinter import filedialog
-import yt_dlp
+import os
+import re
+import sys
+import time
 import threading
+import urllib.request
 import webbrowser
 import requests
+import yt_dlp
+import tkinter as tk
+from tkinter import filedialog, Toplevel, StringVar, messagebox, ttk, Button
 from io import BytesIO
 from PIL import Image, ImageTk
-import tkinter as tk
-from tkinter import ttk
-import re
-import time
-import os
-import urllib.request
 from misc import PlaylistHandler
-from tkinter import Toplevel, StringVar, messagebox, ttk, Button
-import threading
-import yt_dlp
-
-class BeginnerDownloaderGUI(ttk.Frame):
+import io
+class HomeGui(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
         self.thumbnail_images = []
         self.downloader_thread = None
         self.search_thread = None
-        self.search_event = threading.Event()  # Event to signal search cancellation
+        self.search_event = threading.Event()  # Event to stop ongoing thread can be search or downloading
         self.is_downloading = False
-        # Add in __init__ method
         self.cancel_requested = False
 
         # Configure styles
         self.style = ttk.Style()
         self.style.configure('Separator.TFrame', background='#e0e0e0')
 
-        # Main Frame Content
-        self.main_frame = ttk.Frame(self)  # Change parent to self (to make this a tab)
+        #Main Frame Content start here
+        self.main_frame = ttk.Frame(self)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # Search Bar Section (Horizontal)
         search_frame = ttk.Frame(self.main_frame)
         search_frame.pack(fill=tk.X, pady=5)
 
-        # Search label, entry, buttons
+        # Search buttons
         search_label = ttk.Label(search_frame, text="Search here:", font=("Helvetica", 9, "bold"))
         search_label.pack(side=tk.LEFT, padx=5)
 
         self.search_entry = ttk.Entry(search_frame, width=40)
         self.search_entry.pack(side=tk.LEFT, padx=5)
+        self.search_entry.bind("<Return>", lambda event: self.search_engine())
 
         self.paste_button = ttk.Button(search_frame, text="Paste", command=self.paste_from_clipboard)
         self.paste_button.pack(side=tk.LEFT, padx=5)
@@ -56,7 +53,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.cancel_button = ttk.Button(search_frame, text="X Cancel", command=self.cancel_search)
         self.cancel_button.pack(side=tk.LEFT, padx=5)
 
-        # Scrollable Frame for Results
+        # Scrollable Frame for Results from searching
         self.result_frame = ttk.Frame(self.main_frame)
         self.result_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -100,20 +97,17 @@ class BeginnerDownloaderGUI(ttk.Frame):
         # Progress bar
         progress_frame = ttk.Frame(bottom_frame)
         progress_frame.pack(fill=tk.X, pady=1)
-        progress_frame.columnconfigure(0, weight=1)
-        
+        progress_frame.columnconfigure(0, weight=1)        
         self.progress = ttk.Progressbar(progress_frame, orient=tk.HORIZONTAL, mode='determinate', style="TProgressbar")
-        self.progress.pack(fill=tk.X, padx=5)
-        
+        self.progress.pack(fill=tk.X, padx=5)        
         self.status_label = ttk.Label(progress_frame, text="Ready", font=("Helvetica", 9))
         self.status_label.pack(pady=1)
+
         # Download buttons
         button_frame = ttk.Frame(bottom_frame)
         button_frame.pack(fill=tk.X, pady=0.1)                
         cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
         cancel_button.pack(side=tk.LEFT, padx=1)
-
-    import threading
 
     def paste_from_clipboard(self):
         """Paste URL from clipboard to search bar using Tkinter's clipboard."""
@@ -122,17 +116,11 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.search_entry.insert(0, clipboard_text)
 
     def cancel_search(self):
-        """Cancel the ongoing search operation and update the GUI."""
-        print("Search canceled.")  # This still prints to the terminal
-        
-        # Set the event to signal the search thread to stop
-        self.search_event.set()
-
-        # Ensure the GUI updates in the main thread
+        print("Search canceled.")        
+        self.search_event.set() #signal to stop searching
         self.master.after(0, lambda: self.status_label.config(text="Search Canceled", foreground="red"))
 
     def browse_save_location(self):
-        """Open a file dialog to choose the save location."""
         from tkinter.filedialog import askdirectory
         directory = askdirectory()
         if directory:
@@ -149,56 +137,44 @@ class BeginnerDownloaderGUI(ttk.Frame):
             widget.destroy()
         self.thumbnail_images.clear()
 
-        # Check if it's a URL using a fast method
+        # Check if it's a URL
         if query.startswith("http"):
             self.process_url(query)
         else:
             self.search_youtube(query)
 
+    #if http in url detected, it check for playlist by checking '&list' in url, if it's not then search
     def process_url(self, url):
-        """Detect if the URL is a playlist or a single video and process accordingly."""
         #if self.search_event.is_set():  # Stop if the event is set
             #return
 
         if "list=" in url:
-            # Update GUI to show playlist detection and set loading cursor
             self.status_label.config(text="Playlist detected! Processing...", foreground="blue")
             self.parent.config(cursor="watch")  # Change mouse to loading
-
-            # Start a new thread to process the playlist so the UI remains responsive
             threading.Thread(target=self.process_playlist, args=(url,)).start()
 
         else:
-            # It's a single video, process it for download
             self.status_label.config(text="Single video detected! Processing...", foreground="blue")
             self.create_download_button(url)
             self.status_label.config(text="Video ready for download!", foreground="green")
 
     def process_playlist(self, url):
-        """Process playlist in a background thread."""
         if self.search_event.is_set():  # Stop if the event is set
             return
-
         import misc
         if misc.is_playlist(url):  # Ensuring it's a valid playlist
-            # Call the playlist handler function
             playlist_handler = misc.process_playlist_url(self.parent, url)
-            # After processing, update GUI
             self.status_label.config(text="Playlist processed successfully!", foreground="green")
         else:
             self.status_label.config(text="Invalid playlist URL!", foreground="red")
 
-        # Reset mouse cursor after processing
         self.parent.config(cursor="")  # Reset to default cursor
    
     def create_widgets(self):
-        # Search frame
         self.search_frame = ttk.Frame(self.parent)
-        self.search_frame.pack(pady=10)
-        
+        self.search_frame.pack(pady=10)        
         self.search_entry = ttk.Entry(self.search_frame, width=50)
-        self.search_entry.pack(side=tk.LEFT, padx=5)
-        
+        self.search_entry.pack(side=tk.LEFT, padx=5)        
         self.search_button = ttk.Button(
             self.search_frame, 
             text="Search", 
@@ -227,47 +203,38 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.scrollbar.pack(side="right", fill="y")
         
     def search_youtube(self, query):
-        """Search YouTube for videos in a separate thread."""
         if not query:
-            return
-            
-        # Clear previous results
+            return            
         for widget in self.scrollable_frame.winfo_children():
-            widget.destroy()
-        self.thumbnail_images.clear()
-        
-        # Show searching status
-        self.status_label.config(text="Searching...", foreground="blue")
-        
+            widget.destroy() #clear previously results
+        self.thumbnail_images.clear()        
+        self.status_label.config(text="Searching...", foreground="blue")        
         # Create a list to store captured output messages
         captured_output = []
         
         def custom_output_hook(message):
-            """Capture output from yt-dlp"""
             captured_output.append(message)
-            # Check for network errors in the output
             if "Failed to resolve" in message or "Temporary failure in name resolution" in message or "Failed to connect" in message:
                 self.parent.after(0, lambda: self.show_network_error_popup(message))
         
+        #configure yt-dlp to use the hook
         def search():
-            # Configure yt-dlp to use our hook
             ydl_opts = {
                 'extract_flat': True,
                 'quiet': False,  # Need this to be False to get output messages
                 'force_generic_extractor': True,
                 'progress_hooks': [self.yt_dlp_hook],
-                'verbose': True,  # Enable verbose output
+                'verbose': True,  # Enable verbose output especially in terminal
             }
 
             try:
                 # Redirect stdout to capture yt-dlp output
-                import sys
-                import io
+
                 original_stdout = sys.stdout
                 sys.stdout = io.StringIO()
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    # Override ydl's output methods to capture network errors
+                    # This if four overriding ytd-lp's output methods to capture network errors
                     original_to_screen = ydl.to_screen
                     original_to_stderr = ydl.to_stderr
                     
@@ -300,10 +267,10 @@ class BeginnerDownloaderGUI(ttk.Frame):
                     self.parent.after(0, lambda: self.status_label.config(text=""))
 
                     for i, video in enumerate(search_results['entries']):
-                        if not video or self.search_event.is_set():  # Check if search is canceled
+                        if not video or self.search_event.is_set(): 
                             self.parent.after(0, lambda: self.status_label.config(
                                 text="Search Canceled", foreground="red"
-                            ))  # Update GUI safely
+                            )) 
                             return
                         
                         # Schedule UI updates in main thread
@@ -326,33 +293,27 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.search_thread = threading.Thread(target=search, daemon=True)
         self.search_thread.start()
 
+    #Display a network error popup
     def show_network_error_popup(self, _):
-        """Display a network error popup."""
         import tkinter.messagebox as messagebox
         messagebox.showerror("Network Error", "Failed to connect. Check your internet and try again.")
         self.status_label.config(text="Network Error", foreground="red")
 
+    #Create a video result item in the UI
     def create_video_item(self, video, index):
-        """Create a video result item in the UI."""
         video_frame = ttk.Frame(self.scrollable_frame)
         video_frame.pack(fill=tk.X, padx=5, pady=5)
-
-        # Add separator if not the first item
         if index > 0:
             separator = ttk.Frame(self.scrollable_frame, height=1, relief=tk.SUNKEN, borderwidth=1)
             separator.pack(fill=tk.X, pady=5)
 
-        # Main container (Thumbnail + Buttons + Info)
+        # Main container (Thumbnail + Buttons + some Info)
         container = ttk.Frame(video_frame)
         container.pack(fill=tk.X, padx=5, pady=5)
-
-        # Thumbnail placeholder (scaled to fit)
         thumbnail_label = ttk.Label(container, text="Loading...", width=15)
         thumbnail_label.pack(side=tk.LEFT, padx=5, pady=5)
-
-        # Get best available thumbnail URL
         thumbnail_url = (video.get('thumbnail') or
-                        next((t['url'] for t in video.get('thumbnails', []) if t.get('url')), ''))
+                        next((t['url'] for t in video.get('thumbnails', []) if t.get('url')), '')) #Best thumbnail url accoring to googling
 
         # Start thumbnail download in background
         threading.Thread(
@@ -361,7 +322,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
             daemon=True
         ).start()
 
-        # Button section (right of thumbnail)
+        # Button sections
         button_frame = ttk.Frame(container)
         button_frame.pack(side=tk.LEFT, padx=10, pady=5)
 
@@ -384,7 +345,6 @@ class BeginnerDownloaderGUI(ttk.Frame):
 
         # Share button
         def copy_and_notify(url_data):
-            # Handle URL if it's in a dictionary
             if isinstance(url_data, dict):
                 url_data = url_data.get('url', '')
                 print(f"Extracted valid URL: {url_data}")
@@ -398,16 +358,12 @@ class BeginnerDownloaderGUI(ttk.Frame):
             notification.overrideredirect(True)
             notification.attributes('-topmost', True)
             
-            # Position the notification near the sharing button
+            # Position the popup near the sharing button
             x = self.parent.winfo_pointerx()
             y = self.parent.winfo_pointery()
             notification.geometry(f"+{x+10}+{y+10}")
-            
-            # Notification content
             ttk.Label(notification, text="Link copied to clipboard!", padding=10).pack()
-            
-            # Auto-close notification after 2 seconds
-            notification.after(2000, notification.destroy)
+            notification.after(2000, notification.destroy) #close after 2 seconds
 
         share_button = ttk.Button(
             button_frame,
@@ -417,24 +373,22 @@ class BeginnerDownloaderGUI(ttk.Frame):
         )
         share_button.pack(fill=tk.X, pady=2)
 
-        # Video info section (to the right of buttons)
+        # Video info section
         info_frame = ttk.Frame(container)
         info_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
 
-        # Title (truncated for long titles)
+        # Title section (truncated for long titles)
         title = video.get('title', 'No title')[:60] + ('...' if len(video.get('title', '')) > 60 else '')
         ttk.Label(info_frame, text=f"{title}", font=('Arial', 10, 'bold')).pack(anchor='w')
         #ttk.Label(info_frame, text=f"Title: {title}", font=('Arial', 10, 'bold')).pack(anchor='w')
 
-
         # Channel name
         ttk.Label(info_frame, text=f"Channel: {video.get('uploader', 'Unknown channel')}").pack(anchor='w')
 
-        # Format view count with appropriate suffix (k, M, B)
+        # Format view count with appropriate suffix (k, M, B) to keeo stuff cool! huh
         view_count = video.get('view_count', 0)
         if view_count >= 1_000_000_000:  # Billions
             view_count_str = f"{view_count / 1_000_000_000:.1f}B"
-            # Remove .0 if it's a whole number
             view_count_str = view_count_str.replace('.0B', 'B')
         elif view_count >= 1_000_000:  # Millions
             view_count_str = f"{view_count / 1_000_000:.1f}M"
@@ -445,7 +399,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         else:
             view_count_str = f"{view_count}" if view_count else 'N/A'
 
-        # Duration fix: Convert float to int before formatting
+        # Duration section
         duration = int(video.get('duration', 0)) if video.get('duration') else 0
         if duration:
             hours = duration // 3600
@@ -459,42 +413,31 @@ class BeginnerDownloaderGUI(ttk.Frame):
         else:
             duration_str = 'N/A'
 
-        # Create info lines with labels
         ttk.Label(info_frame, text=f"Duration: {duration_str}").pack(anchor='w')
         ttk.Label(info_frame, text=f"Viewers: {view_count_str}").pack(anchor='w')
-        # Store video data
         video_frame.video_data = video
-
-
+    #Thumbanail, or bunner of the video
     def download_thumbnail(self, thumbnail_url, label=None):
         if label is None:
-            label = self.thumbnail_label
-            
+            label = self.thumbnail_label            
         if not thumbnail_url:
             self.parent.after(0, lambda: label.config(text="No thumbnail", image=''))
-            return
-            
+            return            
         if "hqdefault" in thumbnail_url:
-            thumbnail_url = thumbnail_url.replace("hqdefault", "maxresdefault")
-            
+            thumbnail_url = thumbnail_url.replace("hqdefault", "maxresdefault")            
         if not thumbnail_url.startswith(('http://', 'https://')):
             self.parent.after(0, lambda: label.config(text="Invalid URL", image=''))
-            return
-            
+            return            
         img_data = None
-        errors = []
-        
+        errors = []        
         try:
-            import requests
             response = requests.get(thumbnail_url, stream=True, timeout=10)
             response.raise_for_status()
             img_data = response.content
         except Exception as e:
-            errors.append(f"Requests method failed: {str(e)}")
-            
+            errors.append(f"Requests method failed: {str(e)}")            
         if img_data is None:
             try:
-                import urllib.request
                 with urllib.request.urlopen(thumbnail_url, timeout=10) as response:
                     img_data = response.read()
             except Exception as e:
@@ -502,8 +445,6 @@ class BeginnerDownloaderGUI(ttk.Frame):
         
         if img_data:
             try:
-                from PIL import Image, ImageTk
-                from io import BytesIO
                 
                 img = Image.open(BytesIO(img_data))
                 img.thumbnail((280, 130), Image.LANCZOS)
@@ -512,8 +453,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 if hasattr(self, 'thumbnail_images'):
                     self.thumbnail_images.append(photo)
                 else:
-                    self.thumbnail_image = photo
-                    
+                    self.thumbnail_image = photo                    
                 self.parent.after(0, lambda: label.config(image=photo, text=""))
                 return True
             except Exception as e:
@@ -523,35 +463,26 @@ class BeginnerDownloaderGUI(ttk.Frame):
         self.parent.after(0, lambda: label.config(text="No thumbnail", image=''))
         return False
 
-    
+    #Hook to handle yt-dlp errors
     def yt_dlp_hook(self, d):
-        """Hook to handle yt-dlp errors."""
         if d['status'] == 'error':
             print(f"yt-dlp error: {d['error']}")
-                
-    def create_download_button(self, url):
-        """Create a download button for the video with format options."""
-        # Update GUI to indicate that download options are being prepared
+                      
+    def create_download_button(self, url): #error
         self.status_label.config(text="Preparing download options...", foreground="blue")
         print(f"Creating download options for: {url}")
-        
-        # If url is a dictionary, extract the valid video URL.
-        # We assume that the valid video URL is stored in the top-level key "url"
         if isinstance(url, dict):
             valid_url = url.get('url', '')
             print(f"Extracted valid URL: {valid_url}")
-            url = valid_url  # Now 'url' contains just the valid video link.
-        
-        # Continue to create the download button using the extracted URL
+            url = valid_url  # Now 'url' contains just the valid video link.        
+        # Continue to create the download options using the extracted URL
             self.open_format_selection_popup(url)
 
-
     def open_format_selection_popup(self, url):
-        """Open a single popup window for selecting video or audio formats with dropdowns."""
-        # Create a new top-level window (popup)
         format_popup = tk.Toplevel(self.parent)
         format_popup.title("Download Options")
-        format_popup.geometry("500x320")  # Increased height to accommodate subtitle option
+        format_popup.geometry("500x320")
+        #able to know name of download
         format_popup.resizable(False, False)
         
         # Make the popup modal (blocks interaction with main window)
@@ -560,10 +491,10 @@ class BeginnerDownloaderGUI(ttk.Frame):
         
         # Center popup on parent window
         x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - (500 // 2)
-        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (320 // 2)  # Adjusted for new height
+        y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (320 // 2)
         format_popup.geometry(f"+{x}+{y}")
         
-        # Create a heading
+        # Create  heading
         heading_label = ttk.Label(format_popup, text="Select Download Format", font=("Helvetica", 12, "bold"))
         heading_label.pack(pady=(15, 10))
         
@@ -578,19 +509,42 @@ class BeginnerDownloaderGUI(ttk.Frame):
         # Format options dictionaries
         video_format_options = [
             ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"),
+            ("MP4 - 4K", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/best[ext=mp4][height<=2160]/best"),
+            ("MP4 - 1440p", "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=m4a]/best[ext=mp4][height<=1440]/best"),
             ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best"),
             ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best"),
             ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best"),
             ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best"),
-            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best")
+            ("MP4 - 240p", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[ext=mp4][height<=240]/best"),
+            ("MP4 - Smallest Size", "worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst"),
+            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best"),
+            ("WebM - 1080p", "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best"),
+            ("WebM - 720p", "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best"),
+            ("WebM - 480p", "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best"),
+            ("MKV - Best Quality", "bestvideo+bestaudio/best"),
+            ("AVI - Best Quality", "bestvideo+bestaudio --merge-output-format avi"),
+            ("FLV - Best Quality", "bestvideo+bestaudio --merge-output-format flv"),
+            ("3GP - Mobile", "worst[ext=3gp]/worst --recode-video 3gp"),
+            ("MP4 - Video Only", "bestvideo[ext=mp4]-bestaudio/bestvideo[ext=mp4]"),
+            ("WebM - Video Only", "bestvideo[ext=webm]-bestaudio/bestvideo[ext=webm]")
         ]
-        
+
         audio_format_options = [
             ("MP3 - 320kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 320K"),
+            ("MP3 - 256kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 256K"),
             ("MP3 - 192kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 192K"),
             ("MP3 - 128kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 128K"),
+            ("MP3 - 96kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 96K"),
             ("M4A - Best Quality", "bestaudio/best -x --audio-format m4a --audio-quality 0"),
-            ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0")
+            ("M4A - Medium Quality", "bestaudio/best -x --audio-format m4a --audio-quality 2"),
+            ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0"),
+            ("OGG - Medium Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 3"),
+            ("OPUS - Best Quality", "bestaudio/best -x --audio-format opus --audio-quality 0"),
+            ("FLAC - Lossless", "bestaudio/best -x --audio-format flac"),
+            ("WAV - Uncompressed", "bestaudio/best -x --audio-format wav"),
+            ("AAC - High Quality", "bestaudio/best -x --audio-format aac --audio-quality 0"),
+            ("AIFF - Uncompressed", "bestaudio/best -x --audio-format aiff"),
+            ("WMA - High Quality", "bestaudio/best -x --audio-format wma --audio-quality 0")
         ]
         
         # Subtitle language options
@@ -667,17 +621,14 @@ class BeginnerDownloaderGUI(ttk.Frame):
             width=30
         )
         
-        # Subtitle option frame (new)
+        # Subtitle 
         subtitle_frame = ttk.Frame(container)
-        
-        # Subtitle checkbox and language selection (new)
         subtitle_check = ttk.Checkbutton(
             subtitle_frame,
             text="Download subtitles:",
             variable=subtitle_var
         )
-        subtitle_check.pack(side=tk.LEFT, padx=(0, 10))
-        
+        subtitle_check.pack(side=tk.LEFT, padx=(0, 10))        
         # Subtitle language dropdown
         subtitle_lang_dropdown = ttk.Combobox(
             subtitle_frame,
@@ -687,20 +638,12 @@ class BeginnerDownloaderGUI(ttk.Frame):
             width=20
         )
         subtitle_lang_dropdown.pack(side=tk.LEFT)
-        
-        # Initial dropdown setup
         update_dropdown_visibility()
-        
-        # Save path section
         path_frame = ttk.Frame(container)
-        path_frame.pack(fill=tk.X, pady=10)
-        
+        path_frame.pack(fill=tk.X, pady=10)        
         path_label = ttk.Label(path_frame, text="Save to:")
         path_label.pack(side=tk.LEFT)
-        
-        # Get default save path from entry
-        default_path = self.save_path_entry.get() if hasattr(self, 'save_path_entry') else os.path.expanduser("~/Downloads")
-        
+        default_path = self.save_path_entry.get() if hasattr(self, 'save_path_entry') else os.path.expanduser("~/Downloads")        
         path_var = tk.StringVar(value=default_path)
         path_entry = ttk.Entry(path_frame, textvariable=path_var)
         path_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
@@ -713,7 +656,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         )
         browse_button.pack(side=tk.RIGHT)
         
-        # Button frame
+        # Browse Button
         button_frame = ttk.Frame(format_popup)
         button_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=20, pady=15)
         
@@ -725,7 +668,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
         )
         cancel_button.pack(side=tk.LEFT, padx=5)
         
-        # Download button with added subtitle handling
+        # Download button
         download_button = ttk.Button(
             button_frame, 
             text="Download", 
@@ -734,7 +677,7 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 self.start_download(
                     # If url is a dict, let start_download handle it.
                     url, 
-                    # Get the base format string and add subtitle command if needed
+                    # Get the base format string and add subtitle command if needed for video though
                     video_format_options[[x[0] for x in video_format_options].index(video_format_var.get())][1] + 
                     (f" --write-subs --sub-lang {get_subtitle_lang()}" if media_type_var.get() == 'video' and subtitle_var.get() else "") 
                     if media_type_var.get() == "video"
@@ -754,15 +697,12 @@ class BeginnerDownloaderGUI(ttk.Frame):
                     if lang_code == "en-auto":
                         return "en --write-auto-sub"
                     return lang_code
-            return "en"  # Default to English if not found
-       
+            return "en"  # Default to English if other language not found
+        
+    #"Start the download process with the selected format options   
     def start_download(self, url, format_string, output_path):
-        """Start the download process with the selected format options."""
-        # Ensure the output directory exists
         if not os.path.exists(output_path):
             os.makedirs(output_path)
-        
-        # Check if the provided url is a dictionary (as seen in debug prints)
         if isinstance(url, dict):
             print("start_download: Received URL as a dict. Extracting string from key 'url'.")
             url_str = url.get('url', '')
@@ -771,13 +711,11 @@ class BeginnerDownloaderGUI(ttk.Frame):
         else:
             print("start_download: Received URL as a string.")
         
-        # Debug prints for download settings
+        # Adding prints, i was confused so just added for debugging
         print(f"start_download: URL = {url}")
         print(f"start_download: Selected format string = {format_string}")
         print(f"start_download: Output path = {output_path}")
-        
-        # Update status in the UI
-        self.status_label.config(text="Starting download...", foreground="blue")
+        self.status_label.config(text="Starting download...", foreground="blue") #Update in UI
         self.progress['value'] = 0
         
         # Reset cancel flag before starting new download
@@ -796,17 +734,14 @@ class BeginnerDownloaderGUI(ttk.Frame):
         download_thread.daemon = True
         download_thread.start()
 
+    #Update the progress bar and status label with download progress
     def update_download_progress(self, d):
-        """Update the progress bar and status label with download progress."""
-        # Check if cancellation was requested
         if hasattr(self, 'cancel_requested') and self.cancel_requested:
             raise Exception("Download cancelled by user")
             
         if d['status'] == 'downloading':
-            # Extract progress information
             downloaded = d.get('downloaded_bytes', 0)
-            total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
-            
+            total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)            
             # Get filename information
             filename = d.get('filename', '').split('/')[-1].split('\\')[-1]  # Extract just the filename
             if len(filename) > 30:  # Truncate if too long
@@ -815,18 +750,11 @@ class BeginnerDownloaderGUI(ttk.Frame):
             # Calculate percentage if total size is known
             if total > 0:
                 percentage = (downloaded / total) * 100
-                # Format percentage with proper display (1 decimal place)
-                percent_text = f"{percentage:.1f}%"
-                
-                # Format sizes for better display
+                percent_text = f"{percentage:.1f}%"                
                 downloaded_mb = downloaded / 1024 / 1024
                 total_mb = total / 1024 / 1024
-                size_text = f"{downloaded_mb:.1f} MB / {total_mb:.1f} MB"
-                
-                # Update the progress bar
-                self.progress['value'] = percentage
-                
-                # Update status with better font rendering
+                size_text = f"{downloaded_mb:.1f} MB / {total_mb:.1f} MB"                
+                self.progress['value'] = percentage                
                 download_speed = d.get('speed', 0)
                 if download_speed:
                     speed_text = f"{download_speed / 1024 / 1024:.2f} MB/s"
@@ -837,11 +765,10 @@ class BeginnerDownloaderGUI(ttk.Frame):
                 # Update the status label with proper font handling
                 self.status_label.config(text=status_text)
                 
-                # Force update of the UI
+                # Forcing update of the UI, Hah to show that im serios
                 self.status_label.update_idletasks()
                 self.progress.update_idletasks()
             else:
-                # If size is unknown, show indeterminate progress but still show filename
                 downloaded_mb = downloaded / 1024 / 1024
                 self.status_label.config(text=f"Downloading: {filename} - {downloaded_mb:.1f} MB (size unknown)")
         
@@ -849,12 +776,10 @@ class BeginnerDownloaderGUI(ttk.Frame):
             # Get filename information for the completed download
             filename = d.get('filename', '').split('/')[-1].split('\\')[-1]
             self.status_label.config(text=f"Download of {filename} finished. Processing file...", foreground="blue")
-            # Reset progress to show processing state
             self.progress['value'] = 0
             self.progress.update_idletasks()
 
     def cancel_download(self):
-        """Cancel the current download process if one is in progress."""
         print("Cancel download requested")
         self.cancel_requested = True
         self.download_cancelled = True
@@ -865,7 +790,6 @@ class BeginnerDownloaderGUI(ttk.Frame):
             self.cancel_button.config(state=tk.DISABLED)
 
     def download_thread(self, url, format_string, output_path):
-        """Download thread that handles the actual downloading process."""
         try:
             # Update status to show initial download preparation
             self.parent.after(0, lambda: self.status_label.config(text=f"Preparing to download from {url}...", foreground="black"))
@@ -874,8 +798,8 @@ class BeginnerDownloaderGUI(ttk.Frame):
             ydl_opts = {
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'progress_hooks': [self.update_download_progress],
-                'verbose': True,  # Debug info enabled
-                'quiet': False,   # Debug info enabled
+                'verbose': True,  # Debug info enabled 
+                'quiet': False,   # Debug info enabled ,just similar to explanation above
             }
             
             print("Download thread: yt-dlp options before format handling:")
@@ -962,14 +886,11 @@ class BeginnerDownloaderGUI(ttk.Frame):
             print(f"Download error: {str(e)}")
 
     def on_download_complete(self):
-        """Update UI when download is complete."""
-        # If download was cancelled, don't show the "Download complete" message
         if not hasattr(self, 'download_cancelled') or not self.download_cancelled:
             self.status_label.config(text="Download complete! Ready for next download.", foreground="green")
             self.progress['value'] = 100
             self.parent.bell()  # Simple bell sound
         else:
-            # Leave the "Download cancelled" message visible
             self.progress['value'] = 0
         
         # Reset the cancel flag
@@ -986,25 +907,22 @@ class BeginnerDownloaderGUI(ttk.Frame):
 ################################################################################33
 
     def _format_time(self, seconds):
-        """Format seconds to human-readable time."""
         if seconds < 60:
             return f"{seconds:.0f}s"
         elif seconds < 3600:
             return f"{seconds//60:.0f}m {seconds%60:.0f}s"
         else:
             return f"{seconds//3600:.0f}h {(seconds%3600)//60:.0f}m"
-
+    #in future we could program its own player!
     def play_video(self, url):
-        """Open the video URL in a browser."""
         if url:
             webbrowser.open(url)
 
 
 if __name__ == "__main__":
     parent = tk.Tk()
-    parent.title("Beginner Downloader")
-    parent.geometry("800x600")
-    
-    app = BeginnerDownloaderGUI(parent)
+    parent.title("Home")
+    parent.geometry("800x600")    
+    app = HomeGui(parent)
     app.pack(fill=tk.BOTH, expand=True)
     parent.mainloop()
