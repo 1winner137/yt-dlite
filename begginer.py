@@ -23,41 +23,53 @@ class HomeGui(ttk.Frame):
         self._search_active = True 
         self.is_downloading = False
         self.cancel_requested = False
+        
         # Configure styles
         self.style = ttk.Style()
         self.style.configure('Separator.TFrame', background='#e0e0e0')
-        #Main Frame Content start here
+        
+        # Main Frame Content start here
         self.main_frame = ttk.Frame(self)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Enable responsive layout
+        self.main_frame.columnconfigure(0, weight=1)
+        self.main_frame.rowconfigure(1, weight=1)
+        
         # Search Bar Section (Horizontal)
         search_frame = ttk.Frame(self.main_frame)
-        search_frame.pack(fill=tk.X, pady=5)
+        search_frame.grid(row=0, column=0, sticky="ew", pady=5)
+        search_frame.columnconfigure(1, weight=1)
+        
         # Search buttons
         search_label = ttk.Label(search_frame, text="Search here:", font=("Helvetica", 9, "bold"))
-        search_label.pack(side=tk.LEFT, padx=5)
+        search_label.grid(row=0, column=0, padx=5, sticky="w")
         
         # Create Entry with placeholder
-        self.search_entry = ttk.Entry(search_frame, width=40)
-        self.search_entry.pack(side=tk.LEFT, padx=5)
+        self.search_entry = ttk.Entry(search_frame)
+        self.search_entry.grid(row=0, column=1, padx=5, sticky="ew")
         self.search_entry.insert(0, "how to use yt-dlite")
         self.search_entry.bind("<FocusIn>", lambda event: self.search_entry.delete(0, tk.END) if self.search_entry.get() == "how to use yt-dlite" else None)
         self.search_entry.bind("<Return>", lambda event: self.search_engine())
         
-        # Automatically run search when initialized
-        self.after(500, self.search_engine)  # Run after a short delay to ensure UI is ready
+        # Buttons in search frame
+        button_frame = ttk.Frame(search_frame)
+        button_frame.grid(row=0, column=2, sticky="e")
+        
+        self.paste_button = ttk.Button(button_frame, text="Paste", command=self.paste_from_clipboard)
+        self.paste_button.pack(side=tk.LEFT, padx=2)
 
-        self.paste_button = ttk.Button(search_frame, text="Paste", command=self.paste_from_clipboard)
-        self.paste_button.pack(side=tk.LEFT, padx=5)
+        self.search_button = ttk.Button(button_frame, text="Search", command=self.search_engine)
+        self.search_button.pack(side=tk.LEFT, padx=2)
 
-        self.search_button = ttk.Button(search_frame, text="Search", command=self.search_engine)
-        self.search_button.pack(side=tk.LEFT, padx=5)
-
-        self.cancel_button = ttk.Button(search_frame, text="X Cancel", command=self.cancel_search)
-        self.cancel_button.pack(side=tk.LEFT, padx=5)
-
+        self.cancel_button = ttk.Button(button_frame, text="X Cancel", command=self.cancel_search)
+        self.cancel_button.pack(side=tk.LEFT, padx=2)
+        
         # Scrollable Frame for Results from searching
         self.result_frame = ttk.Frame(self.main_frame)
-        self.result_frame.pack(fill=tk.BOTH, expand=True)
+        self.result_frame.grid(row=1, column=0, sticky="nsew", pady=5)
+        self.result_frame.columnconfigure(0, weight=1)
+        self.result_frame.rowconfigure(0, weight=1)
 
         self.scrollable_canvas = tk.Canvas(self.result_frame)
         self.scrollbar = ttk.Scrollbar(self.result_frame, orient="vertical", command=self.scrollable_canvas.yview)
@@ -68,12 +80,16 @@ class HomeGui(ttk.Frame):
         self.canvas_window = self.scrollable_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.scrollable_canvas.configure(yscrollcommand=self.scrollbar.set)
         
-        self.scrollable_canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
+        self.scrollable_canvas.grid(row=0, column=0, sticky="nsew")
+        self.scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Make scrollable frame expand to fill canvas width
+        self.scrollable_canvas.bind("<Configure>", self.configure_scrollable_frame)
 
         # Bottom section for download controls, progress, etc...
         bottom_frame = ttk.Frame(self.main_frame)
-        bottom_frame.pack(fill=tk.X, side=tk.BOTTOM, pady=1)
+        bottom_frame.grid(row=2, column=0, sticky="ew", pady=5)
+        bottom_frame.columnconfigure(0, weight=1)
 
         # Download path section
         download_frame = ttk.Frame(bottom_frame)
@@ -83,6 +99,9 @@ class HomeGui(ttk.Frame):
         ttk.Label(download_frame, text="Save to:", font=("Helvetica", 9, "bold")).grid(row=0, column=0, padx=5, sticky=tk.W)
         self.save_path_entry = ttk.Entry(download_frame, font=("Helvetica", 9))
         self.save_path_entry.grid(row=0, column=1, padx=5, sticky=tk.EW)
+        
+        # Automatically run search when initialized
+        self.after(500, self.search_engine)
         
         # Set default save path to Downloads/yt-dlite folder
         downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -110,6 +129,13 @@ class HomeGui(ttk.Frame):
         button_frame.pack(fill=tk.X, pady=0.1)                
         cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
         cancel_button.pack(side=tk.LEFT, padx=1)
+    
+    def configure_scrollable_frame(self, event):
+        canvas_width = event.width
+        self.scrollable_canvas.itemconfig(self.canvas_window, width=canvas_width)
+        for child in self.scrollable_frame.winfo_children():
+            if hasattr(child, 'configure_width'):
+                child.configure_width(canvas_width - 20)  # 20 pixels margin
 
     def paste_from_clipboard(self):
         """Paste URL from clipboard to search bar using Tkinter's clipboard."""
