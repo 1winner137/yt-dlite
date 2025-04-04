@@ -138,7 +138,6 @@ class HomeGui(ttk.Frame):
                 child.configure_width(canvas_width - 20)  # 20 pixels margin
 
     def paste_from_clipboard(self):
-        """Paste URL from clipboard to search bar using Tkinter's clipboard."""
         clipboard_text = self.parent.clipboard_get()
         self.search_entry.delete(0, tk.END)
         self.search_entry.insert(0, clipboard_text)
@@ -263,6 +262,7 @@ class HomeGui(ttk.Frame):
                 'force_generic_extractor': True,
                 'progress_hooks': [self.yt_dlp_hook],
                 'verbose': True,  # Enable verbose output especially in terminal
+                'playlistend': 50,  # Increase the number of results (adjust as needed), you can set 10 or more
             }
 
             try:
@@ -286,7 +286,8 @@ class HomeGui(ttk.Frame):
                     ydl.to_screen = capture_output
                     ydl.to_stderr = capture_stderr
                     
-                    search_results = ydl.extract_info(f"ytsearch10:{query}", download=False)
+                    # Changed from ytsearch10 to ytsearch50 to get more results
+                    search_results = ydl.extract_info(f"ytsearch50:{query}", download=False)
 
                     # Restore original stdout and output methods
                     sys.stdout = original_stdout
@@ -303,8 +304,16 @@ class HomeGui(ttk.Frame):
 
                     self.parent.after(0, lambda: self.status_label.config(text=""))
 
+                    # Display a count of found videos
+                    video_count = len(search_results['entries'])
+                    if video_count > 0 and self._search_active:
+                        self.parent.after(0, lambda: self.status_label.config(
+                            text=f"Found {video_count} videos", 
+                            foreground="green"
+                        ))
+
                     for i, video in enumerate(search_results['entries']):
-                        if not video or not self._search_active:  # Check flag instead of event
+                        if not video or not self._search_active:
                             self.parent.after(0, lambda: self.status_label.config(
                                 text="Search Canceled", foreground="red"
                             )) 
@@ -326,7 +335,7 @@ class HomeGui(ttk.Frame):
                         ))
 
         # Start search in background thread
-        self._search_active = True  # Set flag instead of clearing event
+        self._search_active = True
         self.search_thread = threading.Thread(target=search, daemon=True)
         self.search_thread.start()
 
