@@ -20,29 +20,31 @@ class HomeGui(ttk.Frame):
         self.thumbnail_images = []
         self.downloader_thread = None
         self.search_thread = None
-        self.search_event = threading.Event()  # Event to stop ongoing thread can be search or downloading
+        self._search_active = True 
         self.is_downloading = False
         self.cancel_requested = False
-
         # Configure styles
         self.style = ttk.Style()
         self.style.configure('Separator.TFrame', background='#e0e0e0')
-
         #Main Frame Content start here
         self.main_frame = ttk.Frame(self)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
         # Search Bar Section (Horizontal)
         search_frame = ttk.Frame(self.main_frame)
         search_frame.pack(fill=tk.X, pady=5)
-
         # Search buttons
         search_label = ttk.Label(search_frame, text="Search here:", font=("Helvetica", 9, "bold"))
         search_label.pack(side=tk.LEFT, padx=5)
-
+        
+        # Create Entry with placeholder
         self.search_entry = ttk.Entry(search_frame, width=40)
         self.search_entry.pack(side=tk.LEFT, padx=5)
+        self.search_entry.insert(0, "how to use yt-dlite")
+        self.search_entry.bind("<FocusIn>", lambda event: self.search_entry.delete(0, tk.END) if self.search_entry.get() == "how to use yt-dlite" else None)
         self.search_entry.bind("<Return>", lambda event: self.search_engine())
+        
+        # Automatically run search when initialized
+        self.after(500, self.search_engine)  # Run after a short delay to ensure UI is ready
 
         self.paste_button = ttk.Button(search_frame, text="Paste", command=self.paste_from_clipboard)
         self.paste_button.pack(side=tk.LEFT, padx=5)
@@ -116,9 +118,10 @@ class HomeGui(ttk.Frame):
         self.search_entry.insert(0, clipboard_text)
 
     def cancel_search(self):
-        print("Search canceled.")        
-        self.search_event.set() #signal to stop searching
-        self.master.after(0, lambda: self.status_label.config(text="Search Canceled", foreground="red"))
+        print("Search canceled.")
+        self._search_active = False
+        self.status_label.config(text="Search Canceled", foreground="red")
+        self.parent.config(cursor="") #reset flag
 
     def browse_save_location(self):
         from tkinter.filedialog import askdirectory
@@ -129,7 +132,9 @@ class HomeGui(ttk.Frame):
 
     def search_engine(self):
         query = self.search_entry.get().strip()
-        if not query or self.search_event.is_set():  # Stop if the event is set
+        if not query:
+            # Show message to enter a link if query is empty
+            self.status_label.config(text="Please enter a search term or URL", foreground="red")
             return
 
         # Clear previous results
@@ -137,22 +142,28 @@ class HomeGui(ttk.Frame):
             widget.destroy()
         self.thumbnail_images.clear()
 
+        # Reset search cancellation flag
+        self._search_active = True
+
         # Check if it's a URL
         if query.startswith("http"):
             self.process_url(query)
         else:
             self.search_youtube(query)
 
-    #if http in url detected, it check for playlist by checking '&list' in url, if it's not then search
     def process_url(self, url):
-        #if self.search_event.is_set():  # Stop if the event is set
-            #return
+        if not self._search_active:  # Check flag instead of event
+            return
+
+        if not url.strip():
+            # Show message if URL is empty after stripping
+            self.status_label.config(text="Please enter a URL", foreground="red")
+            return
 
         if "list=" in url:
             self.status_label.config(text="Playlist detected! Processing...", foreground="blue")
             self.parent.config(cursor="watch")  # Change mouse to loading
             threading.Thread(target=self.process_playlist, args=(url,)).start()
-
         else:
             self.status_label.config(text="Single video detected! Processing...", foreground="blue")
             self.create_download_button(url)
@@ -160,7 +171,7 @@ class HomeGui(ttk.Frame):
             self.open_format_selection_popup(url)
 
     def process_playlist(self, url):
-        if self.search_event.is_set():  # Stop if the event is set
+        if not self._search_active:  # Check flag instead of event
             return
         import misc
         if misc.is_playlist(url):  # Ensuring it's a valid playlist
@@ -169,7 +180,7 @@ class HomeGui(ttk.Frame):
         else:
             self.status_label.config(text="Invalid playlist URL!", foreground="red")
 
-        self.parent.config(cursor="")  # Reset to default cursor
+        self.parent.config(cursor="")
    
     def create_widgets(self):
         self.search_frame = ttk.Frame(self.parent)
@@ -230,12 +241,11 @@ class HomeGui(ttk.Frame):
 
             try:
                 # Redirect stdout to capture yt-dlp output
-
                 original_stdout = sys.stdout
                 sys.stdout = io.StringIO()
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    # This if four overriding ytd-lp's output methods to capture network errors
+                    # This is for overriding ytd-lp's output methods to capture network errors
                     original_to_screen = ydl.to_screen
                     original_to_stderr = ydl.to_stderr
                     
@@ -258,7 +268,7 @@ class HomeGui(ttk.Frame):
                     ydl.to_stderr = original_to_stderr
 
                     if not search_results or 'entries' not in search_results:
-                        if not self.search_event.is_set():
+                        if self._search_active:  # Check flag instead of event
                             self.parent.after(0, lambda: self.status_label.config(
                                 text="No results found", 
                                 foreground="red"
@@ -268,7 +278,7 @@ class HomeGui(ttk.Frame):
                     self.parent.after(0, lambda: self.status_label.config(text=""))
 
                     for i, video in enumerate(search_results['entries']):
-                        if not video or self.search_event.is_set(): 
+                        if not video or not self._search_active:  # Check flag instead of event
                             self.parent.after(0, lambda: self.status_label.config(
                                 text="Search Canceled", foreground="red"
                             )) 
@@ -278,7 +288,7 @@ class HomeGui(ttk.Frame):
                         self.parent.after(0, self.create_video_item, video, i)
 
             except Exception as e:
-                if not self.search_event.is_set():  # Only show error if search was not canceled
+                if self._search_active:  # Check flag instead of event
                     error_msg = str(e)
                     # Check for specific network error messages
                     if "Failed to resolve" in error_msg or "Failed to connect" in error_msg or "Temporary failure in name resolution" in error_msg:
@@ -290,7 +300,7 @@ class HomeGui(ttk.Frame):
                         ))
 
         # Start search in background thread
-        self.search_event.clear()  # Clear the event before starting the search
+        self._search_active = True  # Set flag instead of clearing event
         self.search_thread = threading.Thread(target=search, daemon=True)
         self.search_thread.start()
 
@@ -469,20 +479,25 @@ class HomeGui(ttk.Frame):
         if d['status'] == 'error':
             print(f"yt-dlp error: {d['error']}")
                       
-    def create_download_button(self, url): #error
+    def create_download_button(self, url):
         self.status_label.config(text="Preparing download options...", foreground="blue")
         print(f"Creating download options for: {url}")
+        
+        # Extract valid URL and title if url is a dictionary
+        title = None
         if isinstance(url, dict):
             valid_url = url.get('url', '')
+            title = url.get('title', 'Download')  # Extract title from dictionary
             print(f"Extracted valid URL: {valid_url}")
-            url = valid_url   
-            self.open_format_selection_popup(url)
+            url = valid_url
+        
+        # Open format selection with title information
+        self.open_format_selection_popup(url, title)
 
-    def open_format_selection_popup(self, url):
+    def open_format_selection_popup(self, url, title=None):
         format_popup = tk.Toplevel(self.parent)
         format_popup.title("Download Options")
         format_popup.geometry("500x320")
-        #able to know name of download
         format_popup.resizable(False, False)
         
         # Make the popup modal (blocks interaction with main window)
@@ -494,9 +509,47 @@ class HomeGui(ttk.Frame):
         y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - (320 // 2)
         format_popup.geometry(f"+{x}+{y}")
         
-        # Create  heading
+        # Create heading
         heading_label = ttk.Label(format_popup, text="Select Download Format", font=("Helvetica", 12, "bold"))
         heading_label.pack(pady=(15, 10))
+        
+        # Create a container frame for the title with left alignment
+        title_frame = ttk.Frame(format_popup)
+        title_frame.pack(fill=tk.X, padx=20, pady=(0, 10), anchor=tk.W)
+        
+        # Create title label with placeholder initially
+        title_label = ttk.Label(title_frame, text="Title: Loading...", font=("Helvetica", 10))
+        title_label.pack(side=tk.LEFT, anchor=tk.W)
+        
+        # Update title if already available
+        if title:
+            title_text = title if len(title) <= 55 else title[:52] + "..."
+            title_label.config(text=f"Title: {title_text}")
+        else:
+            # Try to fetch title in background without blocking
+            def fetch_title_thread():
+                try:
+                    ydl_opts = {
+                        'quiet': True,
+                        'no_warnings': True,
+                        'skip_download': True,
+                        'extract_flat': True,
+                    }
+                    
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        fetched_title = info.get('title', 'Unknown Title')
+                        
+                        # Update title label in main thread
+                        title_text = fetched_title if len(fetched_title) <= 55 else fetched_title[:52] + "..."
+                        format_popup.after(0, lambda: title_label.config(text=f"Title: {title_text}"))
+                except Exception as e:
+                    # If there's an error, just show a generic title
+                    format_popup.after(0, lambda: title_label.config(text="Title: Unable to retrieve"))
+                    print(f"Error fetching title: {str(e)}")
+            
+            # Start title fetching in background
+            threading.Thread(target=fetch_title_thread, daemon=True).start()
         
         # Create a container frame
         container = ttk.Frame(format_popup)
@@ -506,7 +559,6 @@ class HomeGui(ttk.Frame):
         media_type_frame = ttk.Frame(container)
         media_type_frame.pack(fill=tk.X, pady=5)
         
-        # Format options dictionaries
         video_format_options = [
             ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"),
             ("MP4 - 4K", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/best[ext=mp4][height<=2160]/best"),
