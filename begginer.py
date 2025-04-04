@@ -177,7 +177,7 @@ class HomeGui(ttk.Frame):
             self.search_youtube(query)
 
     def process_url(self, url):
-        if not self._search_active:  # Check flag instead of event
+        if not self._search_active:  
             return
 
         if not url.strip():
@@ -196,7 +196,7 @@ class HomeGui(ttk.Frame):
             self.open_format_selection_popup(url)
 
     def process_playlist(self, url):
-        if not self._search_active:  # Check flag instead of event
+        if not self._search_active:  
             return
         import misc
         if misc.is_playlist(url):  # Ensuring it's a valid playlist
@@ -295,7 +295,7 @@ class HomeGui(ttk.Frame):
                     ydl.to_stderr = original_to_stderr
 
                     if not search_results or 'entries' not in search_results:
-                        if self._search_active:  # Check flag instead of event
+                        if self._search_active:  
                             self.parent.after(0, lambda: self.status_label.config(
                                 text="No results found", 
                                 foreground="red"
@@ -313,7 +313,7 @@ class HomeGui(ttk.Frame):
                         ))
 
                     for i, video in enumerate(search_results['entries']):
-                        if not video or not self._search_active:  # Check flag instead of event
+                        if not video or not self._search_active:  
                             self.parent.after(0, lambda: self.status_label.config(
                                 text="Search Canceled", foreground="red"
                             )) 
@@ -323,7 +323,7 @@ class HomeGui(ttk.Frame):
                         self.parent.after(0, self.create_video_item, video, i)
 
             except Exception as e:
-                if self._search_active:  # Check flag instead of event
+                if self._search_active:  
                     error_msg = str(e)
                     # Check for specific network error messages
                     if "Failed to resolve" in error_msg or "Failed to connect" in error_msg or "Temporary failure in name resolution" in error_msg:
@@ -595,25 +595,25 @@ class HomeGui(ttk.Frame):
         media_type_frame.pack(fill=tk.X, pady=5)
         
         video_format_options = [
-            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"),
-            ("MP4 - 4K", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/best[ext=mp4][height<=2160]/best"),
-            ("MP4 - 1440p", "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=m4a]/best[ext=mp4][height<=1440]/best"),
-            ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best"),
-            ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best"),
-            ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best"),
-            ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best"),
-            ("MP4 - 240p", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[ext=mp4][height<=240]/best"),
-            ("MP4 - Smallest Size", "worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst"),
-            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best"),
-            ("WebM - 1080p", "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best"),
-            ("WebM - 720p", "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best"),
-            ("WebM - 480p", "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best"),
-            ("MKV - Best Quality", "bestvideo+bestaudio/best"),
+            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=mp4]/best[ext=mp4]/best --merge-output-format mp4"),
+            ("MP4 - 4K", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=mp4]/best[ext=mp4][height<=2160]/best --merge-output-format mp4"),
+            ("MP4 - 1440p", "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=mp4]/best[ext=mp4][height<=1440]/best --merge-output-format mp4"),
+            ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=mp4]/best[ext=mp4][height<=1080]/best --merge-output-format mp4"),
+            ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=mp4]/best[ext=mp4][height<=720]/best --merge-output-format mp4"),
+            ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=mp4]/best[ext=mp4][height<=480]/best --merge-output-format mp4"),
+            ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=mp4]/best[ext=mp4][height<=360]/best --merge-output-format mp4"),
+            ("MP4 - 240p", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=mp4]/best[ext=mp4][height<=240]/best --merge-output-format mp4"),
+            ("MP4 - Smallest Size", "worstvideo[ext=mp4]+worstaudio[ext=mp4]/worst[ext=mp4]/worst --merge-output-format mp4"),
+            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best --merge-output-format webm"),
+            ("WebM - 1080p", "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best --merge-output-format webm"),
+            ("WebM - 720p", "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best --merge-output-format webm"),
+            ("WebM - 480p", "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best --merge-output-format webm"),
+            ("MKV - Best Quality", "bestvideo+bestaudio --merge-output-format mkv"),
             ("AVI - Best Quality", "bestvideo+bestaudio --merge-output-format avi"),
             ("FLV - Best Quality", "bestvideo+bestaudio --merge-output-format flv"),
             ("3GP - Mobile", "worst[ext=3gp]/worst --recode-video 3gp"),
-            ("MP4 - Video Only", "bestvideo[ext=mp4]-bestaudio/bestvideo[ext=mp4]"),
-            ("WebM - Video Only", "bestvideo[ext=webm]-bestaudio/bestvideo[ext=webm]")
+            ("MP4 - Video Only", "bestvideo[ext=mp4]-bestaudio/bestvideo[ext=mp4] --merge-output-format mp4"),
+            ("WebM - Video Only", "bestvideo[ext=webm]-bestaudio/bestvideo[ext=webm] --merge-output-format webm")
         ]
 
         audio_format_options = [
@@ -944,7 +944,7 @@ class HomeGui(ttk.Frame):
                     self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
                 # Reset the cancel flag
                 self.cancel_requested = False
-                return  # Exit download_thread without calling on_download_complete
+                return
                 
             # Execute the download with yt-dlp, passing a list containing the URL string
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
