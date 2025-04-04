@@ -262,7 +262,7 @@ class HomeGui(ttk.Frame):
                 'force_generic_extractor': True,
                 'progress_hooks': [self.yt_dlp_hook],
                 'verbose': True,  # Enable verbose output especially in terminal
-                'playlistend': 50,  # Increase the number of results (adjust as needed), you can set 10 or more
+                'playlistend': 50,  # Increase the number of results (adjust as needed)
             }
 
             try:
@@ -313,7 +313,7 @@ class HomeGui(ttk.Frame):
                         ))
 
                     for i, video in enumerate(search_results['entries']):
-                        if not video or not self._search_active:
+                        if not video or not self._search_active:  # Check flag instead of event
                             self.parent.after(0, lambda: self.status_label.config(
                                 text="Search Canceled", foreground="red"
                             )) 
