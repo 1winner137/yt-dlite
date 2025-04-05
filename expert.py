@@ -12,6 +12,7 @@ import time
 import sys
 from io import StringIO
 
+
 class RedirectText:
     def __init__(self, text_widget, queue):
         self.queue = queue
@@ -101,12 +102,33 @@ class ExpertGui:
         self.cmd_entry = ttk.Entry(cmd_frame)
         self.cmd_entry.pack(side='left', fill='x', expand=True)
         
+        # Set placeholder text
+        self.placeholder_text = "paste or write yt-dlp command here"
+        self.cmd_entry.insert(0, self.placeholder_text)
+        self.cmd_entry.config(foreground='gray')
+        
+        # Bind focus events to handle placeholder behavior
+        self.cmd_entry.bind("<FocusIn>", self.on_entry_focus_in)
+        self.cmd_entry.bind("<FocusOut>", self.on_entry_focus_out)
+        
         # ADD PASTE BUTTON HERE
         paste_btn = ttk.Button(cmd_frame, text="Paste command", command=self.paste_clipboard)
         paste_btn.pack(side='left', padx=5)
         
         execute_btn = ttk.Button(cmd_frame, text="Execute", command=self.execute_command)
         execute_btn.pack(side='left', padx=5)
+
+    def on_entry_focus_in(self, event):
+        """Remove placeholder text when entry gets focus"""
+        if self.cmd_entry.get() == self.placeholder_text:
+            self.cmd_entry.delete(0, "end")
+            self.cmd_entry.config(foreground='black')
+
+    def on_entry_focus_out(self, event):
+        """Add placeholder text if entry is empty and loses focus"""
+        if not self.cmd_entry.get():
+            self.cmd_entry.insert(0, self.placeholder_text)
+            self.cmd_entry.config(foreground='gray')
             
     def create_converter_section(self, parent):
         # Label
@@ -248,8 +270,6 @@ class ExpertGui:
         # Progress bar
         self.progress_bar = ttk.Progressbar(parent, mode='determinate')
         self.progress_bar.pack(fill='x', pady=5)
-
-        # Status label (centered)
         self.status_label = ttk.Label(parent, text="Ready")
         self.status_label.pack(anchor='center')
         
@@ -271,7 +291,10 @@ class ExpertGui:
 
     def paste_clipboard(self):
         clipboard_text = self.parent.clipboard_get()
-        self.cmd_entry.delete(0, tk.END)
+        if self.cmd_entry.get() == self.placeholder_text:
+            self.cmd_entry.delete(0, "end")
+            self.cmd_entry.config(foreground='black')
+        self.cmd_entry.delete(0, "end")
         self.cmd_entry.insert(0, clipboard_text)
     # Process any pending output in the queue
     def update_terminal(self):
@@ -306,6 +329,11 @@ class ExpertGui:
             self.download_folder = folder
     
     def execute_command(self):
+        command = self.cmd_entry.get()
+        # Don't execute if it's just the placeholder
+        if command == self.placeholder_text:
+            return
+
         if self.download_in_progress:
             messagebox.showinfo("Info", "A download is already in progress")
             return
@@ -368,6 +396,7 @@ class ExpertGui:
             if not url:
                 self.parent.after(0, lambda: self.status_label.config(text="No URL found in command"))
                 self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
+                self.parent.after(0, lambda: messagebox.showerror("Error", "No URL found in the command. Please enter full command."))
                 self.download_in_progress = False
                 return
             
@@ -852,6 +881,13 @@ class ExpertGui:
         elif d['status'] == 'finished':
             self.parent.after(0, lambda: self.progress_bar.config(value=100))
             self.parent.after(0, lambda: self.status_label.config(text="Processing file..."))
+
+    def update_conversion_progress(self, progress):
+        """Update the progress bar with the current conversion progress."""
+        if hasattr(self, 'progress_bar'):
+            self.progress_bar.config(value=progress)
+            # Optionally update status label with percentage
+            self.status_label.config(text=f"Converting: {progress:.1f}%")
     
 
 # Custom logger for yt-dlp to capture all output
