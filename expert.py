@@ -119,13 +119,11 @@ class ExpertGui:
         execute_btn.pack(side='left', padx=5)
 
     def on_entry_focus_in(self, event):
-        """Remove placeholder text when entry gets focus"""
         if self.cmd_entry.get() == self.placeholder_text:
             self.cmd_entry.delete(0, "end")
             self.cmd_entry.config(foreground='black')
 
     def on_entry_focus_out(self, event):
-        """Add placeholder text if entry is empty and loses focus"""
         if not self.cmd_entry.get():
             self.cmd_entry.insert(0, self.placeholder_text)
             self.cmd_entry.config(foreground='gray')
