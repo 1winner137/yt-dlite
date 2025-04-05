@@ -35,6 +35,24 @@ class ExpertGui:
         # Queue for terminal output
         self.terminal_queue = queue.Queue()
         
+        # Download state variables
+        self.download_in_progress = False
+        self.conversion_in_progress = False
+        self.current_process = None
+        
+        # Thread-safe lock
+        self.process_lock = threading.Lock()
+        
+        # Flag for cancellation
+        self.cancellation_requested = False
+        
+        # Initialize download thread as None
+        self.download_thread = None
+        
+        # Setup protocol handler for window close
+        self.parent.protocol("WM_DELETE_WINDOW", self.on_close)
+####non holy#####################################
+        
         # Set default download folder
         self.download_folder = os.path.join(os.path.expanduser("~"), "Downloads", "yt-dlite")
         os.makedirs(self.download_folder, exist_ok=True)
@@ -326,7 +344,11 @@ class ExpertGui:
         self.progress_bar['value'] = 0
         self.status_label.config(text="Starting download...")
         self.cancel_btn.config(state='normal')
-        self.download_in_progress = True # Set flag
+        
+        # Reset cancellation flag and set download flag
+        self.cancellation_requested = False
+        self.download_in_progress = True
+        
         print(f"Executing: {' '.join(full_command)}") # Print the command being executed
         
         # Start thread
@@ -349,10 +371,63 @@ class ExpertGui:
                 self.download_in_progress = False
                 return
             
-            # Create yt-dlp options with progress hook
+            # Custom YoutubeDL logger implementation that checks for cancellation
+            class AbortableYTLogger:
+                def __init__(self, parent_instance):
+                    self.parent = parent_instance
+                
+                def debug(self, msg):
+                    # Check cancellation flag more frequently
+                    if self.parent.cancellation_requested:
+                        raise Exception("Download cancelled by user")
+                        
+                    if msg.startswith('[download]'):
+                        print(f"[debug] {msg}")
+                
+                def info(self, msg):
+                    # Also check cancellation here
+                    if self.parent.cancellation_requested:
+                        raise Exception("Download cancelled by user")
+                    print(f"[info] {msg}")
+                
+                def warning(self, msg):
+                    print(f"[warning] {msg}")
+                
+                def error(self, msg):
+                    print(f"[error] {msg}")
+            
+            # Custom progress hook that checks for cancellation
+            def progress_hook(d):
+                # Check cancellation flag immediately
+                if self.cancellation_requested:
+                    raise Exception("Download cancelled by user")
+                
+                # Regular progress handling
+                if d['status'] == 'downloading':
+                    if 'total_bytes' in d and d['total_bytes'] > 0:
+                        percent = d['downloaded_bytes'] / d['total_bytes'] * 100
+                        self.parent.after(0, lambda: self.progress_bar.config(value=percent))
+                    elif 'total_bytes_estimate' in d and d['total_bytes_estimate'] > 0:
+                        percent = d['downloaded_bytes'] / d['total_bytes_estimate'] * 100
+                        self.parent.after(0, lambda: self.progress_bar.config(value=percent))
+                    
+                    # Update status
+                    if '_percent_str' in d and '_speed_str' in d and '_eta_str' in d:
+                        status = f"Downloading: {d['_percent_str']} at {d['_speed_str']} ETA: {d['_eta_str']}"
+                        self.parent.after(0, lambda: self.status_label.config(text=status))
+                
+                elif d['status'] == 'finished':
+                    # Check cancellation again before processing
+                    if self.cancellation_requested:
+                        raise Exception("Download cancelled by user")
+                        
+                    self.parent.after(0, lambda: self.progress_bar.config(value=100))
+                    self.parent.after(0, lambda: self.status_label.config(text="Download finished, processing..."))
+            
+            # Create yt-dlp options with custom logger and progress hook
             ydl_opts = {
-                'progress_hooks': [self.progress_hook],
-                'logger': YTLogger(),
+                'progress_hooks': [progress_hook],
+                'logger': AbortableYTLogger(self),
                 'quiet': False,
                 'no_warnings': False,
             }
@@ -363,37 +438,126 @@ class ExpertGui:
                     if arg in ['-o', '--output'] and i+2 < len(command):
                         ydl_opts['outtmpl'] = command[i+2]
             
-            # Set download process
-            self.current_process = {'active': True, 'ydl': None}
-            
-            def download_with_ydl():
-                try:
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        self.current_process['ydl'] = ydl
-                        if self.current_process['active']:  # Check if cancelled
-                            ydl.download([url])
+            try:
+                # Add a quick check if already cancelled before starting
+                if self.cancellation_requested:
+                    raise Exception("Download cancelled by user")
                     
-                    if self.current_process['active']:
-                        self.parent.after(0, lambda: self.status_label.config(text="Download completed!"))
-                except Exception as e:
-                    if self.current_process['active']:
-                        self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
-                        print(f"Download error: {str(e)}")
-                finally:
-                    self.current_process = None
-                    self.download_in_progress = False
-                    self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    # Store ydl reference for potential cancellation
+                    with self.process_lock:
+                        self.current_process = {'ydl': ydl}
+                    
+                    # Check if already cancelled
+                    if not self.cancellation_requested:
+                        try:
+                            ydl.download([url])
+                            
+                            # Only update UI if not cancelled
+                            if not self.cancellation_requested:
+                                self.parent.after(0, lambda: self.status_label.config(text="Download completed!"))
+                        except Exception as e:
+                            if "Download cancelled by user" in str(e):
+                                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled"))
+                            else:
+                                self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
+                                print(f"Download error: {str(e)}")
+            except Exception as e:
+                # Handle exceptions outside the YoutubeDL with
+                if "Download cancelled by user" in str(e):
+                    self.parent.after(0, lambda: self.status_label.config(text="Download cancelled"))
+                else:
+                    self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
+                    print(f"Download error: {str(e)}")
             
-            # Start the actual download process
-            download_thread = threading.Thread(target=download_with_ydl)
-            download_thread.daemon = True
-            download_thread.start()
+            finally:
+                # Always clean up
+                with self.process_lock:
+                    self.current_process = None
+                self.download_in_progress = False
+                self.cancellation_requested = False
+                self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
                 
         except Exception as e:
             self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
             self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
             self.download_in_progress = False
+            self.cancellation_requested = False
             print(f"Command execution error: {str(e)}")
+
+    def cancel_operation(self):
+        """Cancel the current operation using a combination of flag-based approach and thread termination."""
+        try:
+            # Set cancellation flag first
+            self.cancellation_requested = True
+            self.status_label.config(text="Cancelling operation...")
+            
+            # Then try to abort specific processes
+            with self.process_lock:
+                if self.current_process:
+                    if isinstance(self.current_process, dict) and self.current_process.get('ydl'):
+                        # It's a download operation
+                        ydl = self.current_process.get('ydl')
+                        if ydl:
+                            # Attempt to abort the download
+                            try:
+                                # Set params directly
+                                ydl.params['abort'] = True
+                            except Exception as e:
+                                print(f"Error while aborting download: {str(e)}")
+                        print("Download cancelled by user")
+                    elif hasattr(self.current_process, 'pid'):
+                        # It's a subprocess operation
+                        try:
+                            if os.name == 'nt':  # Windows
+                                self.current_process.terminate()
+                                time.sleep(0.5)
+                                if self.current_process.poll() is None:
+                                    self.current_process.kill()
+                            else:  # Unix/Linux
+                                os.kill(self.current_process.pid, signal.SIGTERM)
+                                time.sleep(0.5)
+                                if self.current_process.poll() is None:
+                                    os.kill(self.current_process.pid, signal.SIGKILL)
+                            print("Conversion cancelled by user")
+                        except Exception as e:
+                            print(f"Error cancelling process: {str(e)}")
+            
+            # Force terminate the download thread if it's running
+            if self.download_in_progress and hasattr(self, 'download_thread') and self.download_thread.is_alive():
+                # Instead of just waiting, we'll use a timeout approach
+                self.download_thread.join(2.0)  # Wait up to 2 seconds for clean termination
+                
+                if self.download_thread.is_alive():
+                    # Thread is still running - we need to clean up resources
+                    print("Download thread did not terminate gracefully, forcing cleanup")
+                    # We can't actually force-kill a Python thread, but we can clean up resources
+                    self.download_in_progress = False
+                    
+            # Update UI
+            self.status_label.config(text="Operation cancelled")
+            self.progress_bar.stop()
+            self.progress_bar.config(value=0, mode='determinate')
+            self.cancel_btn.config(state='disabled')
+            
+        except Exception as e:
+            # Catch any unexpected errors
+            print(f"Unexpected error during cancellation: {str(e)}")
+            self.status_label.config(text="Error during cancellation")
+
+    def on_close(self):
+        """Handle application close event by terminating any running processes."""
+        if self.download_in_progress:
+            self.cancel_operation()
+            # Give some time for cleanup
+            self.parent.after(100, self._finish_close)
+        else:
+            self._finish_close()
+
+    def _finish_close(self):
+        """Finalize the closing of the application."""
+        # Perform any final cleanup if needed
+        self.parent.destroy()
         
     def start_conversion(self):
         if self.conversion_in_progress:
@@ -689,43 +853,6 @@ class ExpertGui:
             self.parent.after(0, lambda: self.progress_bar.config(value=100))
             self.parent.after(0, lambda: self.status_label.config(text="Processing file..."))
     
-    def cancel_operation(self):
-        # Cancel download operation
-        if self.current_process:
-            if isinstance(self.current_process, dict) and self.current_process.get('ydl'):
-                # It's a download operation
-                self.current_process['active'] = False
-                ydl = self.current_process.get('ydl')
-                if ydl:
-                    # Attempt to abort the download
-                    try:
-                        ydl._finish_multiline_status()
-                        ydl.to_screen("Download aborted by user")
-                    except:
-                        pass
-                print("Download cancelled by user")
-            elif hasattr(self.current_process, 'pid'):
-                # It's a subprocess operation
-                try:
-                    if os.name == 'nt':  # Windows
-                        self.current_process.terminate()
-                    else:  # Unix/Linux
-                        os.kill(self.current_process.pid, signal.SIGTERM)
-                    print("Conversion cancelled by user")
-                except Exception as e:
-                    print(f"Error cancelling process: {str(e)}")
-            
-            self.status_label.config(text="Operation cancelled")
-            self.current_process = None
-        
-        # Reset flags
-        self.download_in_progress = False
-        self.conversion_in_progress = False
-        
-        # Reset UI
-        self.cancel_btn.config(state='disabled')
-        self.progress_bar.stop()
-        self.progress_bar.config(value=0, mode='determinate')
 
 # Custom logger for yt-dlp to capture all output
 class YTLogger:
