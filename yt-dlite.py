@@ -50,7 +50,7 @@ class YouTubeDownloaderGUI:
         self.beginner_tab = HomeGui(self.notebook)  # Attach HomeGui as a tab 
  
         self.notebook.add(self.beginner_tab, text="Home")          
-        self.notebook.add(self.main_tab, text="Pro") 
+        self.notebook.add(self.main_tab, text="Main") 
         self.notebook.add(self.verbose_tab, text="Log") 
         self.notebook.add(self.downloads_tab, text="Downloads") 
          
@@ -115,7 +115,7 @@ class YouTubeDownloaderGUI:
             # Dark theme colors
             bg_color = "#1E1E1E"  # Dark background
             fg_color = "#E0E0E0"  # Light text
-            accent_color = "#0098FF"  # Lighter blue on hover
+            accent_color = "#0098FF"  # Lighter blue on hover #008000 #0098FF
             accent_hover = "#007ACC"  # Blue accent
             tree_bg = "#2D2D2D"  # Slightly lighter than main bg
             tab_bg = "#333333"  # Dark gray for inactive tabs
@@ -236,15 +236,27 @@ class YouTubeDownloaderGUI:
         new_mode = not self.expert_mode if hasattr(self, "expert_mode") else True
         self.expert_mode = new_mode
         
-        # Clear the container frame, can we allow chaning but we keep in memory??
+        # Store current state before clearing
+        current_state = {}
+        if hasattr(self, "save_current_state"):
+            current_state = self.save_current_state()
+        
+        # Clear the container frame
         for widget in self.container_frame.winfo_children():
             widget.destroy()
+            
+        # Load appropriate UI
         if new_mode:
             self.load_main_ui()
             self.switch_button.config(text="Switch to Expert mode")
         else:
             self.load_hello()
             self.switch_button.config(text="Switch to Professional Mode")
+        
+        # Restore previous state if available
+        if current_state and hasattr(self, "restore_state"):
+            self.restore_state(current_state)
+        
         ui_name = "Professional" if new_mode else "Expert"
         if hasattr(self, "log"):
             self.log(f"Switched to {ui_name} UI", "INFO")
@@ -270,21 +282,29 @@ class YouTubeDownloaderGUI:
     def load_hello(self):
         class FrameYTDLPGui(ExpertGui):
             def __init__(self, frame):
+                # Set basic attributes before calling any methods
                 self.parent = frame
                 self.terminal_queue = queue.Queue()
-                self.download_folder = os.path.join(os.path.expanduser("~"), "Downloads", "yt-dlite")
-                os.makedirs(self.download_folder, exist_ok=True)
-                main_frame = frame
-                self.create_downloader_section(main_frame)
-                ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=10)
-                self.create_converter_section(main_frame)
-                ttk.Separator(main_frame, orient='horizontal').pack(fill='x', pady=10)
-                self.create_terminal_section(main_frame)
-                self.setup_stdout_redirection()
-                self.update_terminal()
-                self.create_save_progress_section(main_frame)
                 self.download_in_progress = False
                 self.conversion_in_progress = False
+                self.current_process = None
+                self.process_lock = threading.Lock()
+                self.cancellation_requested = False
+                self.download_thread = None
+                
+                # Custom initialization
+                self.download_folder = os.path.join(os.path.expanduser("~"), "Downloads", "yt-dlite")
+                os.makedirs(self.download_folder, exist_ok=True)
+                
+                # Create UI components
+                self.create_downloader_section(self.parent)
+                ttk.Separator(self.parent, orient='horizontal').pack(fill='x', pady=10)
+                self.create_converter_section(self.parent)
+                ttk.Separator(self.parent, orient='horizontal').pack(fill='x', pady=10)
+                self.create_terminal_section(self.parent)
+                self.setup_stdout_redirection()
+                self.update_terminal()
+                self.create_save_progress_section(self.parent)
         
         # Create an instance of our wrapper class
         self.ytdl_gui = FrameYTDLPGui(self.container_frame)
@@ -952,9 +972,10 @@ class YouTubeDownloaderGUI:
         except yt_dlp.utils.DownloadError as e:
             if not self.fetch_cancelled:
                 error_msg = str(e).strip() or "Unknown download error"
-                self.log(f"yt-dlp error: {error_msg}", "ERROR")
+                self.log(f"Download error: {error_msg}", "ERROR")
                 self.root.after(0, lambda: (
-                    messagebox.showerror("Download Error", f"yt-dlp error:\n{error_msg}"),
+                    #messagebox.showerror("Download Error", f"yt-dlp error:\n{error_msg}"),
+                    messagebox.showerror("Download Error", f"Not valid URL or Unsupported URL"),
                     self.status_label.config(text="Error: Could not process URL")
                 ))
         
@@ -1844,7 +1865,7 @@ class YouTubeDownloaderGUI:
         except Exception as e:
             self.log(f"Error playing file: {str(e)}", "ERROR")
             messagebox.showerror("Error", f"Failed to play the file: {str(e)}")
-            
+
     #play video both as thumbanail and local video in default browser
     def play_video(self, event=None):
         if not self.video_info:
