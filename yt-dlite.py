@@ -116,7 +116,7 @@ class YouTubeDownloaderGUI:
             bg_color = "#1E1E1E"  # Dark background
             fg_color = "#E0E0E0"  # Light text
             accent_color = "#0098FF"  # Lighter blue on hover #008000 #0098FF
-            accent_hover = "#007ACC"  # Blue accent
+            accent_hover = "#007ACC"  # Blue accent on hover
             tree_bg = "#2D2D2D"  # Slightly lighter than main bg
             tab_bg = "#333333"  # Dark gray for inactive tabs
             entry_bg = "#3C3C3C"  # Dark input fields
@@ -229,22 +229,42 @@ class YouTubeDownloaderGUI:
             self.theme_button.configure(text="🌙 Dark Mode")
         theme_name = "Dark" if new_mode else "Light"
         self.log(f"Switched to {theme_name} mode", "INFO")
-    
-    #Switch between Professional and Expert Mode
+    #main tab
+    #switch UI destroy everything no remembering at all, in the future we can fix this
     def switch_ui(self):
+        # Show warning popup before proceeding
+        import tkinter as tk
+        from tkinter import messagebox
+        
+        result = messagebox.showwarning(
+            "Warning: Data Loss",
+            "You are advised to finish all jobs before switching UI modes.\n\nPending jobs will be forgotten and may get out of control.\n\nDo you want to continue?",
+            type=messagebox.OKCANCEL
+        )
+        
+        # If user cancels, abort the switch
+        if result == "cancel":
+            if hasattr(self, "log"):
+                self.log("UI switch cancelled by user", "INFO")
+            return
+        
         # Toggle expert mode
         new_mode = not self.expert_mode if hasattr(self, "expert_mode") else True
         self.expert_mode = new_mode
         
-        # Store current state before clearing
-        current_state = {}
-        if hasattr(self, "save_current_state"):
-            current_state = self.save_current_state()
+        # Log debug information about widget loss
+        if hasattr(self, "log"):
+            self.log("DEBUG: UI switch initiated - Widget data will be lost", "DEBUG")
+            try:
+                widget_count = len(self.container_frame.winfo_children())
+                self.log(f"DEBUG: About to forget {widget_count} widgets", "DEBUG")
+            except Exception as e:
+                self.log(f"Error counting widgets: {e}", "ERROR")
         
         # Clear the container frame
         for widget in self.container_frame.winfo_children():
             widget.destroy()
-            
+        
         # Load appropriate UI
         if new_mode:
             self.load_main_ui()
@@ -253,13 +273,10 @@ class YouTubeDownloaderGUI:
             self.load_hello()
             self.switch_button.config(text="Switch to Professional Mode")
         
-        # Restore previous state if available
-        if current_state and hasattr(self, "restore_state"):
-            self.restore_state(current_state)
-        
         ui_name = "Professional" if new_mode else "Expert"
         if hasattr(self, "log"):
             self.log(f"Switched to {ui_name} UI", "INFO")
+            self.log("WARNING: Previous UI data has been lost due to tkinter limitations", "WARNING")
     
     #Update button visibility based on active tab
     def on_tab_changed(self, event):
@@ -277,7 +294,6 @@ class YouTubeDownloaderGUI:
         self.switch_button = ttk.Button(self.main_tab, text="Switch to Expert Mode", command=self.switch_ui)
         self.switch_button.pack(pady=5)
 
-    #main tab
     #Importing expert.py so that it adapt this frame
     def load_hello(self):
         class FrameYTDLPGui(ExpertGui):
@@ -298,9 +314,9 @@ class YouTubeDownloaderGUI:
                 
                 # Create UI components
                 self.create_downloader_section(self.parent)
-                ttk.Separator(self.parent, orient='horizontal').pack(fill='x', pady=10)
+                ttk.Separator(self.parent, orient='horizontal').pack(fill='x', pady=3)
                 self.create_converter_section(self.parent)
-                ttk.Separator(self.parent, orient='horizontal').pack(fill='x', pady=10)
+                ttk.Separator(self.parent, orient='horizontal').pack(fill='x', pady=3)
                 self.create_terminal_section(self.parent)
                 self.setup_stdout_redirection()
                 self.update_terminal()
