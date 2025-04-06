@@ -59,32 +59,83 @@ class HomeGui(ttk.Frame):
         self.paste_button = ttk.Button(button_frame, text="Paste", command=self.paste_from_clipboard)
         self.paste_button.pack(side=tk.LEFT, padx=2)
 
-        self.search_button = ttk.Button(button_frame, text="Search", command=self.search_engine)
+        self.search_button = ttk.Button(button_frame, text="🔍Search", command=self.search_engine)
         self.search_button.pack(side=tk.LEFT, padx=2)
 
         self.cancel_button = ttk.Button(button_frame, text="X Cancel", command=self.cancel_search)
         self.cancel_button.pack(side=tk.LEFT, padx=2)
         
+
         # Scrollable Frame for Results from searching
         self.result_frame = ttk.Frame(self.main_frame)
         self.result_frame.grid(row=1, column=0, sticky="nsew", pady=5)
         self.result_frame.columnconfigure(0, weight=1)
         self.result_frame.rowconfigure(0, weight=1)
 
-        self.scrollable_canvas = tk.Canvas(self.result_frame)
+        self.scrollable_canvas = tk.Canvas(self.result_frame, highlightthickness=0)
         self.scrollbar = ttk.Scrollbar(self.result_frame, orient="vertical", command=self.scrollable_canvas.yview)
-        
         self.scrollable_frame = ttk.Frame(self.scrollable_canvas)
-        self.scrollable_frame.bind("<Configure>", lambda e: self.scrollable_canvas.configure(scrollregion=self.scrollable_canvas.bbox("all")))
-        
-        self.canvas_window = self.scrollable_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.scrollable_canvas.configure(scrollregion=self.scrollable_canvas.bbox("all"))
+        )
+
+        self.canvas_window = self.scrollable_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="n")
         self.scrollable_canvas.configure(yscrollcommand=self.scrollbar.set)
-        
+
         self.scrollable_canvas.grid(row=0, column=0, sticky="nsew")
         self.scrollbar.grid(row=0, column=1, sticky="ns")
-        
-        # Make scrollable frame expand to fill canvas width
+
+        # Make scrollable frame expand
         self.scrollable_canvas.bind("<Configure>", self.configure_scrollable_frame)
+        self.scrollable_frame.columnconfigure(0, weight=1)
+
+        # Welcome frame
+        welcome_frame = ttk.Frame(self.scrollable_frame)
+        welcome_frame.grid(row=0, column=0, padx=60, pady=(10, 40), sticky="n")
+        welcome_frame.columnconfigure(0, weight=1)
+        welcome_title = ttk.Label(
+            welcome_frame,
+            text="Welcome to YT-DLITE",
+            font=("Arial", 40, "bold"),
+            foreground="red",
+            anchor="center",
+            justify="center"
+        )
+        welcome_title.grid(row=0, column=0, sticky="ew", pady=(0, 20))
+
+        # Arrow text lines with animation
+        arrow_text = [
+            "EXPLORE   DISCOVER   DOWNLOAD",
+            "  CONVERT   MANAGE   ENJOY  ",
+            "     TRANSFORM   CREATE     ",
+            "        SIMPLIFY           ",
+            "          SHARE           ",
+            "           ↑↑↑           ",
+            "↑↑  Type any thing or paste link in search bar ↑↑ ",
+        ]
+
+        self.arrow_labels = []
+
+        for i, line in enumerate(arrow_text):
+            arrow_line = ttk.Label(
+                welcome_frame,
+                text=line,
+                font=("Courier New", 16, "bold"),
+                foreground=self.blend_colors("#ffffff", "#3a7ca5", 0),  # Start "invisible"
+                anchor="center",
+                justify="center"
+            )
+            arrow_line.grid(row=i + 1, column=0, sticky="ew", pady=2)
+            self.arrow_labels.append(arrow_line)
+
+        # Animate
+        self.animate_arrows(0)
+
+        # just to be shure scrollable frame expands
+        self.scrollable_frame.rowconfigure(0, weight=1)
+
 
         # Bottom section for download controls, progress, etc...
         bottom_frame = ttk.Frame(self.main_frame)
@@ -101,7 +152,7 @@ class HomeGui(ttk.Frame):
         self.save_path_entry.grid(row=0, column=1, padx=5, sticky=tk.EW)
         
         # Automatically run search when initialized
-        self.after(500, self.search_engine)
+        #self.after(500, self.search_engine)
         
         # Set default save path to Downloads/yt-dlite folder
         downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -130,6 +181,26 @@ class HomeGui(ttk.Frame):
         cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
         cancel_button.pack(side=tk.LEFT, padx=1)
     
+    def blend_colors(self, color1, color2, ratio):
+        r1, g1, b1 = int(color1[1:3], 16), int(color1[3:5], 16), int(color1[5:7], 16)
+        r2, g2, b2 = int(color2[1:3], 16), int(color2[3:5], 16), int(color2[5:7], 16)
+        r = int(r1 + (r2 - r1) * ratio)
+        g = int(g1 + (g2 - g1) * ratio)
+        b = int(b1 + (b2 - b1) * ratio)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    def animate_arrows(self, step):
+        for i, label in enumerate(self.arrow_labels):
+            # Staggered animation - each line starts a bit later, fade in effect was used here
+            delay = i * 1000  # milliseconds delay between lines
+            if step * 500 >= delay:  # 500ms per step
+                progress = min(1.0, (step * 500 - delay) / 500)  # 500ms animation duration per line
+                color = self.blend_colors("#ffffff", "#3a7ca5", progress)
+                label.configure(foreground=color)
+        
+        if step < 20:  # Continue animation for 20 steps (about 1 second total)
+            self.after(500, lambda: self.animate_arrows(step + 1))
+
     def configure_scrollable_frame(self, event):
         canvas_width = event.width
         self.scrollable_canvas.itemconfig(self.canvas_window, width=canvas_width)
@@ -160,6 +231,7 @@ class HomeGui(ttk.Frame):
         if not query:
             # Show message to enter a link if query is empty
             self.status_label.config(text="Please enter a search term or URL", foreground="red")
+            self.parent.after(0, lambda: messagebox.showerror("Error", "Please enter a search term or URL"))
             return
 
         # Clear previous results
@@ -190,8 +262,6 @@ class HomeGui(ttk.Frame):
             self.parent.config(cursor="watch")  # Change mouse to loading
             threading.Thread(target=self.process_playlist, args=(url,)).start()
         else:
-            self.status_label.config(text="Single video detected! Processing...", foreground="blue")
-            self.create_download_button(url)
             self.status_label.config(text="Video ready for download!", foreground="green")
             self.open_format_selection_popup(url)
 
@@ -244,7 +314,8 @@ class HomeGui(ttk.Frame):
             return            
         for widget in self.scrollable_frame.winfo_children():
             widget.destroy() #clear previously results
-        self.thumbnail_images.clear()        
+        self.thumbnail_images.clear()      
+        self.parent.config(cursor="watch")  
         self.status_label.config(text="Searching...", foreground="blue")        
         # Create a list to store captured output messages
         captured_output = []
@@ -285,8 +356,6 @@ class HomeGui(ttk.Frame):
                     
                     ydl.to_screen = capture_output
                     ydl.to_stderr = capture_stderr
-                    
-                    # Changed from ytsearch10 to ytsearch50 to get more results
                     search_results = ydl.extract_info(f"ytsearch50:{query}", download=False)
 
                     # Restore original stdout and output methods
@@ -305,6 +374,7 @@ class HomeGui(ttk.Frame):
                     self.parent.after(0, lambda: self.status_label.config(text=""))
 
                     # Display a count of found videos
+                    self.parent.config(cursor="")
                     video_count = len(search_results['entries'])
                     if video_count > 0 and self._search_active:
                         self.parent.after(0, lambda: self.status_label.config(
@@ -343,6 +413,7 @@ class HomeGui(ttk.Frame):
     def show_network_error_popup(self, _):
         import tkinter.messagebox as messagebox
         messagebox.showerror("Network Error", "Failed to connect. Check your internet and try again.")
+        self.parent.config(cursor="")
         self.status_label.config(text="Network Error", foreground="red")
 
     #Create a video result item in the UI
@@ -636,10 +707,26 @@ class HomeGui(ttk.Frame):
         
         # Subtitle language options
         subtitle_language_options = [
+            ("Arabic", "ar"),
+            ("Auto-generated (English)", "en-auto"),
+            ("Chinese", "zh"),
+            ("Dutch", "nl"),
             ("English", "en"),
+            ("French", "fr"),
             ("German", "de"),
+            ("Hindi", "hi"),
+            ("Italian", "it"),
+            ("Japanese", "ja"),
+            ("Korean", "ko"),
+            ("Polish", "pl"),
+            ("Portuguese", "pt"),
+            ("Russian", "ru"),
+            ("Spanish", "es"),
             ("Swahili", "sw"),
-            ("Auto-generated (English)", "en-auto")
+            ("Swedish", "sv"),
+            ("Thai", "th"),
+            ("Turkish", "tr"),
+            ("Vietnamese", "vi")
         ]
         
         # Variables for selections
