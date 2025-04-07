@@ -393,7 +393,7 @@ class ExpertGui:
         self.download_thread = threading.Thread(target=self.run_command, args=(full_command,))
         self.download_thread.daemon = True
         self.download_thread.start()
-    
+
     def run_command(self, command):
         try:
             # Extract URL from command
@@ -410,21 +410,18 @@ class ExpertGui:
                 self.download_in_progress = False
                 return
             
-            # Custom YoutubeDL logger implementation that checks for cancellation
-            class AbortableYTLogger:
+            # Custom YoutubeDL logger implementation that passes everything to terminal
+            class PassthroughLogger:
                 def __init__(self, parent_instance):
                     self.parent = parent_instance
                 
                 def debug(self, msg):
-                    # Check cancellation flag more frequently
+                    # Just check for cancellation but pass all messages through
                     if self.parent.cancellation_requested:
                         raise Exception("Download cancelled by user")
-                        
-                    if msg.startswith('[download]'):
-                        print(f"[debug] {msg}")
+                    print(f"[debug] {msg}")
                 
                 def info(self, msg):
-                    # Also check cancellation here
                     if self.parent.cancellation_requested:
                         raise Exception("Download cancelled by user")
                     print(f"[info] {msg}")
@@ -463,12 +460,14 @@ class ExpertGui:
                     self.parent.after(0, lambda: self.progress_bar.config(value=100))
                     self.parent.after(0, lambda: self.status_label.config(text="Download finished, processing..."))
             
-            # Create yt-dlp options with custom logger and progress hook
+            # Create yt-dlp options with passthrough logger and progress hook
+            # Set verbosity to True to ensure all output is passed to terminal
             ydl_opts = {
                 'progress_hooks': [progress_hook],
-                'logger': AbortableYTLogger(self),
+                'logger': PassthroughLogger(self),
                 'quiet': False,
                 'no_warnings': False,
+                'verbose': False,
             }
             
             # Add custom options from command to ydl_opts
@@ -501,6 +500,7 @@ class ExpertGui:
                             else:
                                 self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
                                 print(f"Download error: {str(e)}")
+                
             except Exception as e:
                 # Handle exceptions outside the YoutubeDL with
                 if "Download cancelled by user" in str(e):
