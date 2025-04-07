@@ -238,7 +238,7 @@ class YouTubeDownloaderGUI:
         
         result = messagebox.showwarning(
             "Warning: Data Loss",
-            "You are advised to finish all jobs before switching UI modes.\n\nPending jobs will be forgotten and may get out of control.\n\nDo you want to continue?",
+            "You are advised to finish all jobs before switching between Expert and professional UI modes.\n\nPending jobs in Expert and Professional modes will be forgotten and may get out of control.\n\nDo you want to continue?",
             type=messagebox.OKCANCEL
         )
         
