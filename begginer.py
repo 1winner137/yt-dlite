@@ -105,7 +105,6 @@ class HomeGui(ttk.Frame):
         )
         welcome_title.grid(row=0, column=0, sticky="ew", pady=(0, 20))
 
-        # Arrow text lines with animation
         arrow_text = [
             "EXPLORE   DISCOVER   DOWNLOAD",
             "  CONVERT   MANAGE   ENJOY  ",
@@ -131,7 +130,7 @@ class HomeGui(ttk.Frame):
             self.arrow_labels.append(arrow_line)
 
         # Animate
-        self.animate_arrows(0)
+        self.animate_arrows()
 
         # just to be shure scrollable frame expands
         self.scrollable_frame.rowconfigure(0, weight=1)
@@ -189,17 +188,41 @@ class HomeGui(ttk.Frame):
         b = int(b1 + (b2 - b1) * ratio)
         return f"#{r:02x}{g:02x}{b:02x}"
 
-    def animate_arrows(self, step):
-        for i, label in enumerate(self.arrow_labels):
-            # Staggered animation - each line starts a bit later, fade in effect was used here
-            delay = i * 1000  # milliseconds delay between lines
-            if step * 500 >= delay:  # 500ms per step
-                progress = min(1.0, (step * 500 - delay) / 500)  # 500ms animation duration per line
-                color = self.blend_colors("#ffffff", "#3a7ca5", progress)
-                label.configure(foreground=color)
+    # Updated method signature - no parameters besides self
+    def animate_arrows(self):
+        step = 0
         
-        if step < 20:  # Continue animation for 20 steps (about 1 second total)
-            self.after(500, lambda: self.animate_arrows(step + 1))
+        # Define multiple colors for cycling
+        colors = ["#ffffff", "#3a7ca5", "#f44336", "#4CAF50", "#9C27B0"]
+        color_index = 0
+        
+        def update_animation():
+            nonlocal step, color_index
+            
+            # Calculate which colors to use based on current color_index
+            from_color = colors[color_index]
+            to_color = colors[(color_index + 1) % len(colors)]
+            
+            for i, label in enumerate(self.arrow_labels):
+                # Staggered animation - each line starts a bit later
+                delay = i * 1000  # milliseconds delay between lines
+                if step * 500 >= delay:  # 500ms per step
+                    progress = min(1.0, (step * 500 - delay) / 500)  # 500ms animation duration per line
+                    color = self.blend_colors(from_color, to_color, progress)
+                    label.configure(foreground=color)
+            
+            step += 1
+            
+            # If animation cycle completes
+            if step >= 20:
+                step = 0  # Reset step counter
+                color_index = (color_index + 1) % (len(colors) - 1)  # Move to next color pair
+            
+            # Continue animation loop
+            self.after(400, update_animation)
+        
+        # Start the animation
+        update_animation()
 
     def configure_scrollable_frame(self, event):
         canvas_width = event.width
@@ -666,43 +689,43 @@ class HomeGui(ttk.Frame):
         media_type_frame.pack(fill=tk.X, pady=5)
         
         video_format_options = [
-            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=mp4]/best[ext=mp4]/best --merge-output-format mp4"),
-            ("MP4 - 4K", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=mp4]/best[ext=mp4][height<=2160]/best --merge-output-format mp4"),
-            ("MP4 - 1440p", "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=mp4]/best[ext=mp4][height<=1440]/best --merge-output-format mp4"),
-            ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=mp4]/best[ext=mp4][height<=1080]/best --merge-output-format mp4"),
-            ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=mp4]/best[ext=mp4][height<=720]/best --merge-output-format mp4"),
-            ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=mp4]/best[ext=mp4][height<=480]/best --merge-output-format mp4"),
-            ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=mp4]/best[ext=mp4][height<=360]/best --merge-output-format mp4"),
-            ("MP4 - 240p", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=mp4]/best[ext=mp4][height<=240]/best --merge-output-format mp4"),
-            ("MP4 - Smallest Size", "worstvideo[ext=mp4]+worstaudio[ext=mp4]/worst[ext=mp4]/worst --merge-output-format mp4"),
-            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best --merge-output-format webm"),
-            ("WebM - 1080p", "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best --merge-output-format webm"),
-            ("WebM - 720p", "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best --merge-output-format webm"),
-            ("WebM - 480p", "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best --merge-output-format webm"),
-            ("MKV - Best Quality", "bestvideo+bestaudio --merge-output-format mkv"),
-            ("AVI - Best Quality", "bestvideo+bestaudio --merge-output-format avi"),
-            ("FLV - Best Quality", "bestvideo+bestaudio --merge-output-format flv"),
-            ("3GP - Mobile", "worst[ext=3gp]/worst --recode-video 3gp"),
-            ("MP4 - Video Only", "bestvideo[ext=mp4]-bestaudio/bestvideo[ext=mp4] --merge-output-format mp4"),
-            ("WebM - Video Only", "bestvideo[ext=webm]-bestaudio/bestvideo[ext=webm] --merge-output-format webm")
+            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=mp4]/best[ext=mp4]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 4K", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=mp4]/best[ext=mp4][height<=2160]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 1440p", "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=mp4]/best[ext=mp4][height<=1440]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=mp4]/best[ext=mp4][height<=1080]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=mp4]/best[ext=mp4][height<=720]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=mp4]/best[ext=mp4][height<=480]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=mp4]/best[ext=mp4][height<=360]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 240p", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=mp4]/best[ext=mp4][height<=240]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - Smallest Size", "worstvideo[ext=mp4]+worstaudio[ext=mp4]/worst[ext=mp4]/worst --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best --merge-output-format webm --embed-thumbnail --add-metadata"),
+            ("WebM - 1080p", "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best --merge-output-format webm --embed-thumbnail --add-metadata"),
+            ("WebM - 720p", "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best --merge-output-format webm --embed-thumbnail --add-metadata"),
+            ("WebM - 480p", "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best --merge-output-format webm --embed-thumbnail --add-metadata"),
+            ("MKV - Best Quality", "bestvideo+bestaudio --merge-output-format mkv --embed-thumbnail --add-metadata"),
+            ("AVI - Best Quality", "bestvideo+bestaudio --merge-output-format avi --embed-thumbnail --add-metadata"),
+            ("FLV - Best Quality", "bestvideo+bestaudio --merge-output-format flv --embed-thumbnail --add-metadata"),
+            ("3GP - Mobile", "worst[ext=3gp]/worst --recode-video 3gp --embed-thumbnail --add-metadata"),
+            ("MP4 - Video Only", "bestvideo[ext=mp4]-bestaudio/bestvideo[ext=mp4] --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("WebM - Video Only", "bestvideo[ext=webm]-bestaudio/bestvideo[ext=webm] --merge-output-format webm --embed-thumbnail --add-metadata")
         ]
 
         audio_format_options = [
-            ("MP3 - 320kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 320K"),
-            ("MP3 - 256kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 256K"),
-            ("MP3 - 192kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 192K"),
-            ("MP3 - 128kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 128K"),
-            ("MP3 - 96kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 96K"),
-            ("M4A - Best Quality", "bestaudio/best -x --audio-format m4a --audio-quality 0"),
-            ("M4A - Medium Quality", "bestaudio/best -x --audio-format m4a --audio-quality 2"),
-            ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0"),
-            ("OGG - Medium Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 3"),
-            ("OPUS - Best Quality", "bestaudio/best -x --audio-format opus --audio-quality 0"),
-            ("FLAC - Lossless", "bestaudio/best -x --audio-format flac"),
-            ("WAV - Uncompressed", "bestaudio/best -x --audio-format wav"),
-            ("AAC - High Quality", "bestaudio/best -x --audio-format aac --audio-quality 0"),
-            ("AIFF - Uncompressed", "bestaudio/best -x --audio-format aiff"),
-            ("WMA - High Quality", "bestaudio/best -x --audio-format wma --audio-quality 0")
+            ("MP3 - 320kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 320K --embed-thumbnail --add-metadata"),
+            ("MP3 - 256kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 256K --embed-thumbnail --add-metadata"),
+            ("MP3 - 192kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 192K --embed-thumbnail --add-metadata"),
+            ("MP3 - 128kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 128K --embed-thumbnail --add-metadata"),
+            ("MP3 - 96kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 96K --embed-thumbnail --add-metadata"),
+            ("M4A - Best Quality", "bestaudio/best -x --audio-format m4a --audio-quality 0 --embed-thumbnail --add-metadata"),
+            ("M4A - Medium Quality", "bestaudio/best -x --audio-format m4a --audio-quality 2 --embed-thumbnail --add-metadata"),
+            ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0 --embed-thumbnail --add-metadata"),
+            ("OGG - Medium Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 3 --embed-thumbnail --add-metadata"),
+            ("OPUS - Best Quality", "bestaudio/best -x --audio-format opus --audio-quality 0 --embed-thumbnail --add-metadata"),
+            ("FLAC - Lossless", "bestaudio/best -x --audio-format flac --embed-thumbnail --add-metadata"),
+            ("WAV - Uncompressed", "bestaudio/best -x --audio-format wav --embed-thumbnail --add-metadata"),
+            ("AAC - High Quality", "bestaudio/best -x --audio-format aac --audio-quality 0 --embed-thumbnail --add-metadata"),
+            ("AIFF - Uncompressed", "bestaudio/best -x --audio-format aiff --embed-thumbnail --add-metadata"),
+            ("WMA - High Quality", "bestaudio/best -x --audio-format wma --audio-quality 0 --embed-thumbnail --add-metadata")
         ]
         
         # Subtitle language options
