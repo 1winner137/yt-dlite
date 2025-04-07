@@ -194,7 +194,6 @@ class HomeGui(ttk.Frame):
         b = int(b1 + (b2 - b1) * ratio)
         return f"#{r:02x}{g:02x}{b:02x}"
 
-    # Updated method signature - no parameters besides self
     def animate_arrows(self):
         step = 0
         
@@ -205,17 +204,26 @@ class HomeGui(ttk.Frame):
         def update_animation():
             nonlocal step, color_index
             
+            # First check if widget still exists and window hasn't been closed
+            if not hasattr(self, 'arrow_labels') or not self.winfo_exists():
+                return  # Stop animation if widget is destroyed
+            
             # Calculate which colors to use based on current color_index
             from_color = colors[color_index]
             to_color = colors[(color_index + 1) % len(colors)]
             
             for i, label in enumerate(self.arrow_labels):
-                # Staggered animation - each line starts a bit later
-                delay = i * 1000  # milliseconds delay between lines
-                if step * 500 >= delay:  # 500ms per step
-                    progress = min(1.0, (step * 500 - delay) / 500)  # 500ms animation duration per line
-                    color = self.blend_colors(from_color, to_color, progress)
-                    label.configure(foreground=color)
+                # Check if each individual label still exists
+                try:
+                    # Staggered animation - each line starts a bit later
+                    delay = i * 1000  # milliseconds delay between lines
+                    if step * 500 >= delay:  # 500ms per step
+                        progress = min(1.0, (step * 500 - delay) / 500)  # 500ms animation duration per line
+                        color = self.blend_colors(from_color, to_color, progress)
+                        label.configure(foreground=color)
+                except (tk.TclError, AttributeError):
+                    # Skip this label if it no longer exists
+                    continue
             
             step += 1
             
@@ -224,8 +232,9 @@ class HomeGui(ttk.Frame):
                 step = 0  # Reset step counter
                 color_index = (color_index + 1) % (len(colors) - 1)  # Move to next color pair
             
-            # Continue animation loop
-            self.after(400, update_animation)
+            # Continue animation loop if widget still exists
+            if hasattr(self, 'arrow_labels') and self.winfo_exists():
+                self.after(400, update_animation)
         
         # Start the animation
         update_animation()
@@ -567,31 +576,47 @@ class HomeGui(ttk.Frame):
         if label is None:
             label = self.thumbnail_label            
         if not thumbnail_url:
-            self.parent.after(0, lambda: label.config(text="No thumbnail", image=''))
-            return            
+            self.parent.after(0, lambda: label.config(text="No thumbnail or unstable network", image=''))
+            return
+            
+        # Try medium quality format
         if "hqdefault" in thumbnail_url:
-            thumbnail_url = thumbnail_url.replace("hqdefault", "maxresdefault")            
+            thumbnail_url = thumbnail_url.replace("hqdefault", "mqdefault")
+                
         if not thumbnail_url.startswith(('http://', 'https://')):
             self.parent.after(0, lambda: label.config(text="Invalid URL", image=''))
             return            
+        
+        # Use a shorter timeout for faster response
+        timeout = 5  # reduced from 10 seconds to 5 seconds
         img_data = None
-        errors = []        
+        
+        # First attempt with requests (usually faster)
         try:
-            response = requests.get(thumbnail_url, stream=True, timeout=10)
-            response.raise_for_status()
-            img_data = response.content
-        except Exception as e:
-            errors.append(f"Requests method failed: {str(e)}")            
+            response = requests.get(thumbnail_url, stream=True, timeout=timeout)
+            if response.status_code == 200:
+                img_data = response.content
+        except:
+            pass
+        
+        # Only try the backup method if the first one failed
         if img_data is None:
             try:
-                with urllib.request.urlopen(thumbnail_url, timeout=10) as response:
+                with urllib.request.urlopen(thumbnail_url, timeout=timeout) as response:
                     img_data = response.read()
-            except Exception as e:
-                errors.append(f"Urllib method failed: {str(e)}")
+            except:
+                # If both methods fail with the medium quality, try the original URL
+                if "mqdefault" in thumbnail_url:
+                    original_url = thumbnail_url.replace("mqdefault", "hqdefault")
+                    try:
+                        response = requests.get(original_url, stream=True, timeout=timeout)
+                        if response.status_code == 200:
+                            img_data = response.content
+                    except:
+                        pass
         
         if img_data:
             try:
-                
                 img = Image.open(BytesIO(img_data))
                 img.thumbnail((280, 130), Image.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
@@ -599,14 +624,15 @@ class HomeGui(ttk.Frame):
                 if hasattr(self, 'thumbnail_images'):
                     self.thumbnail_images.append(photo)
                 else:
-                    self.thumbnail_image = photo                    
+                    self.thumbnail_image = photo
+                    
                 self.parent.after(0, lambda: label.config(image=photo, text=""))
                 return True
-            except Exception as e:
-                errors.append(f"Image processing failed: {str(e)}")
+            except:
+                pass
         
-        error_msg = "; ".join(errors)
-        self.parent.after(0, lambda: label.config(text="No thumbnail", image=''))
+        # If we get here, we couldn't load the thumbnail
+        self.parent.after(0, lambda: label.config(text="No thumbnail or unstable network", image=''))
         return False
 
     #Hook to handle yt-dlp errors
@@ -1107,17 +1133,14 @@ class HomeGui(ttk.Frame):
                 self.parent.after(0, self.activate_recovery_buttons)
                 return  # Important: Don't call on_download_complete for errors
 
-    # Add these new methods to handle resume and restart functionality
     def init_recovery_buttons(self, button_frame):
-        """Initialize resume and restart buttons but keep them disabled initially"""
-        self.resume_button = ttk.Button(button_frame, text="Resume Download", command=self.resume_download, state=tk.DISABLED)
+        self.resume_button = ttk.Button(button_frame, text="▶️ Resume", command=self.resume_download, state=tk.DISABLED)
         self.resume_button.pack(side=tk.LEFT, padx=1)
         
-        self.restart_button = ttk.Button(button_frame, text="Restart Download", command=self.restart_download, state=tk.DISABLED)
+        self.restart_button = ttk.Button(button_frame, text="🔄 Restart", command=self.restart_download, state=tk.DISABLED)
         self.restart_button.pack(side=tk.LEFT, padx=1)
 
     def activate_recovery_buttons(self):
-        """Enable resume and restart buttons when download encounters an error"""
         if hasattr(self, 'resume_button') and hasattr(self, 'restart_button'):
             self.resume_button.config(state=tk.NORMAL)
             self.restart_button.config(state=tk.NORMAL)
