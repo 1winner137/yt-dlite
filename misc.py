@@ -163,19 +163,19 @@ class PlaylistHandler:
                 "mp4 (Smallest Size)"
             ]
             format_values = [
-                "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best",
-                "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
-                "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best",
-                "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best",
-                "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[ext=mp4][height<=240]/best",
-                "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best",
-                "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best",
-                "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best",
-                "bestvideo[ext=webm][height<=360]+bestaudio[ext=webm]/best[ext=webm][height<=360]/best",
-                "bestvideo[ext=webm][height<=240]+bestaudio[ext=webm]/best[ext=webm][height<=240]/best",
-                "bestvideo+bestaudio/best",  # MKV container by default for separate video/audio
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/mp4",  # Best quality MP4
-                "worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst"  # Smallest file size
+                "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=mp4][height<=360]+bestaudio[ext=m4a]/best[ext=mp4][height<=360]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=mp4][height<=240]+bestaudio[ext=m4a]/best[ext=mp4][height<=240]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=webm][height<=720]+bestaudio[ext=webm]/best[ext=webm][height<=720]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=webm][height<=480]+bestaudio[ext=webm]/best[ext=webm][height<=480]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=webm][height<=360]+bestaudio[ext=webm]/best[ext=webm][height<=360]/best --embed-thumbnail --add-metadata",
+                "bestvideo[ext=webm][height<=240]+bestaudio[ext=webm]/best[ext=webm][height<=240]/best --embed-thumbnail --add-metadata",
+                "bestvideo+bestaudio/best --embed-thumbnail --add-metadata",  # MKV container by default for separate video/audio
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/mp4 --embed-thumbnail --add-metadata",  # Best quality MP4
+                "worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst --embed-thumbnail --add-metadata"  # Smallest file size
             ]
         else:  # audio
             formats = [
