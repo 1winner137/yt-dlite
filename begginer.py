@@ -174,11 +174,17 @@ class HomeGui(ttk.Frame):
         self.status_label = ttk.Label(progress_frame, text="Ready", font=("Helvetica", 9))
         self.status_label.pack(pady=1)
 
-        # Download buttons
+        # The buttons
+        # The buttons
         button_frame = ttk.Frame(bottom_frame)
-        button_frame.pack(fill=tk.X, pady=0.1)                
-        cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
-        cancel_button.pack(side=tk.LEFT, padx=1)
+        button_frame.pack(fill=tk.X, pady=0.1)
+        
+        # Cancel button
+        self.cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
+        self.cancel_button.pack(side=tk.LEFT, padx=1)
+        
+        # Initialize resume and restart buttons (initially disabled)
+        self.init_recovery_buttons(button_frame)
     
     def blend_colors(self, color1, color2, ratio):
         r1, g1, b1 = int(color1[1:3], 16), int(color1[3:5], 16), int(color1[5:7], 16)
@@ -730,8 +736,8 @@ class HomeGui(ttk.Frame):
         
         # Subtitle language options
         subtitle_language_options = [
-            ("Arabic", "ar"),
             ("Auto-generated (English)", "en-auto"),
+            ("Arabic", "ar"),            
             ("Chinese", "zh"),
             ("Dutch", "nl"),
             ("English", "en"),
@@ -756,8 +762,8 @@ class HomeGui(ttk.Frame):
         media_type_var = tk.StringVar(value="video")
         video_format_var = tk.StringVar(value=video_format_options[0][0])
         audio_format_var = tk.StringVar(value=audio_format_options[0][0])
-        subtitle_var = tk.BooleanVar(value=False)  # New variable for subtitle checkbox
-        subtitle_lang_var = tk.StringVar(value=subtitle_language_options[0][0])  # Language selection
+        subtitle_var = tk.BooleanVar(value=False)  #subtitle checkbox
+        subtitle_lang_var = tk.StringVar(value=subtitle_language_options[0][0])  #Language selection
         
         # Function to update dropdown visibility based on media type
         def update_dropdown_visibility():
@@ -915,6 +921,11 @@ class HomeGui(ttk.Frame):
         self.status_label.config(text="Starting download...", foreground="blue") #Update in UI
         self.progress['value'] = 0
         
+        # Store current download parameters for resume/restart functionality
+        self.current_url = url
+        self.current_format_string = format_string
+        self.current_output_path = output_path
+        
         # Reset cancel flag before starting new download
         self.cancel_requested = False
         self.download_cancelled = False
@@ -923,10 +934,15 @@ class HomeGui(ttk.Frame):
         if hasattr(self, 'cancel_button'):
             self.cancel_button.config(state=tk.NORMAL)
         
+        # Disable resume/restart buttons when starting new download
+        if hasattr(self, 'resume_button') and hasattr(self, 'restart_button'):
+            self.resume_button.config(state=tk.DISABLED)
+            self.restart_button.config(state=tk.DISABLED)
+        
         # Start download in a thread to keep UI responsive
         download_thread = threading.Thread(
             target=self.download_thread,
-            args=(url, format_string, output_path)  # Now URL is a string
+            args=(url, format_string, output_path, False)  # Added False for no-resume by default
         )
         download_thread.daemon = True
         download_thread.start()
@@ -976,36 +992,35 @@ class HomeGui(ttk.Frame):
             self.progress['value'] = 0
             self.progress.update_idletasks()
 
-    def cancel_download(self):
-        print("Cancel download requested")
-        self.cancel_requested = True
-        self.download_cancelled = True
-        self.status_label.config(text="Cancelling download...", foreground="orange")
-        
-        # Disable the cancel button to prevent multiple cancellations
-        if hasattr(self, 'cancel_button'):
-            self.cancel_button.config(state=tk.DISABLED)
-
-    def download_thread(self, url, format_string, output_path):
+    def download_thread(self, url, format_string, output_path, resume=False):
         try:
             # Update status to show initial download preparation
             self.parent.after(0, lambda: self.status_label.config(text=f"Preparing to download from {url}...", foreground="black"))
             
-            # Base options for yt-dlp
+            # Base options for yt-dlp - minimal configuration to let yt-dlp handle everything
             ydl_opts = {
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'progress_hooks': [self.update_download_progress],
-                'verbose': True,  # Debug info enabled 
-                'quiet': False,   # Debug info enabled ,just similar to explanation above
+                'verbose': True,
             }
             
+            # Handle resume option
+            if resume:
+                ydl_opts['continue'] = True
+            
+            print(f"Download thread: Resume mode: {resume}")
             print("Download thread: yt-dlp options before format handling:")
             print(ydl_opts)
             
-            # Set format-specific options for audio or video
+            # Set format-specific options for audio or video with minimal interference
             if 'audio' in format_string:
-                # For audio, split by ' --' and use the first part as the selector
-                ydl_opts['format'] = format_string.split(' --')[0].strip()
+                # For audio extraction
+                if format_string.startswith('-f '):
+                    ydl_opts['format'] = format_string[3:].split(' --')[0].strip()
+                else:
+                    ydl_opts['format'] = format_string.split(' --')[0].strip()
+                    
+                # Set postprocessors based on the requested audio format
                 if 'mp3' in format_string:
                     quality = '320' if '320K' in format_string else '192' if '192K' in format_string else '128'
                     ydl_opts['postprocessors'] = [{
@@ -1029,58 +1044,158 @@ class HomeGui(ttk.Frame):
                     }]
                     ydl_opts['extractaudio'] = True
             else:
-                # For video, if the format string has a '-f ' prefix, remove it.
+                # For video formats - pass format string directly
                 if format_string.startswith('-f '):
-                    format_string = format_string[3:]
-                ydl_opts['format'] = format_string
-                
+                    ydl_opts['format'] = format_string[3:].strip()
+                else:
+                    ydl_opts['format'] = format_string.strip()
+            
             print("Download thread: Final yt-dlp options:")
             print(ydl_opts)
             print(f"Download thread: Executing yt-dlp for URL: {url}")
             print(f"Download thread: With format: {format_string}")
             
-            # Extract video info first to get the title
-            with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-                info_dict = ydl.extract_info(url, download=False)
-                video_title = info_dict.get('title', 'Unknown Title')
-                self.parent.after(0, lambda: self.status_label.config(text=f"Starting download: {video_title}", foreground="black"))
+            # Get video information - minimal configuration to let yt-dlp handle everything
+            video_title = "Unknown Title"
+            try:
+                with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                    info_dict = ydl.extract_info(url, download=False)
+                    video_title = info_dict.get('title', 'Unknown Title')
+                    self.parent.after(0, lambda: self.status_label.config(text=f"Starting download: {video_title}", foreground="black"))
+            except Exception as info_error:
+                print(f"Info extraction error: {str(info_error)}")
+                self.parent.after(0, lambda: self.status_label.config(text=f"Starting download from {url}", foreground="black"))
             
             # Check if user cancelled during info extraction
             if hasattr(self, 'cancel_requested') and self.cancel_requested:
                 self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="orange"))
                 self.parent.after(0, lambda: self.progress.config(value=0))
-                # Disable the cancel button
                 if hasattr(self, 'cancel_button'):
                     self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
-                # Reset the cancel flag
                 self.cancel_requested = False
                 return
-                
-            # Execute the download with yt-dlp, passing a list containing the URL string
+                    
+            # Execute the download with yt-dlp - let yt-dlp handle everything
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+                download_result = ydl.download([url])
                 
-            # If we get here, download completed successfully
-            self.parent.after(0, self.on_download_complete)
-                
+            # Check for successful download
+            if download_result == 0:
+                # If we get here, download completed successfully
+                self.parent.after(0, self.on_download_complete)
+            else:
+                # Download returned non-zero status (error)
+                raise Exception(f"yt-dlp returned error code: {download_result}")
+                    
         except Exception as e:
             if str(e) == "Download cancelled by user":
                 # Handle cancellation gracefully
                 self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="orange"))
                 self.parent.after(0, lambda: self.progress.config(value=0))
-                # Disable the cancel button
                 if hasattr(self, 'cancel_button'):
                     self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
-                # Reset the cancel flag
                 self.cancel_requested = False
             else:
-                error_msg = f"Error downloading from {url}: {str(e)}"
+                # Display the original error for debugging - pass through unmodified
+                error_msg = f"Error: {str(e)}"
+                print(f"Download error: {str(e)}")
+                
                 # Use after() to safely update UI from a thread
-                self.parent.after(0, lambda: self.status_label.config(text=error_msg, foreground="red"))
-                # Call on_download_complete for non-cancellation errors
-                self.parent.after(0, self.on_download_complete)
+                self.parent.after(0, lambda: self.status_label.config(text=error_msg, foreground="black"))
+                
+                # Enable resume and restart buttons when errors occur
+                self.parent.after(0, self.activate_recovery_buttons)
+                return  # Important: Don't call on_download_complete for errors
+
+    # Add these new methods to handle resume and restart functionality
+    def init_recovery_buttons(self, button_frame):
+        """Initialize resume and restart buttons but keep them disabled initially"""
+        self.resume_button = ttk.Button(button_frame, text="Resume Download", command=self.resume_download, state=tk.DISABLED)
+        self.resume_button.pack(side=tk.LEFT, padx=1)
+        
+        self.restart_button = ttk.Button(button_frame, text="Restart Download", command=self.restart_download, state=tk.DISABLED)
+        self.restart_button.pack(side=tk.LEFT, padx=1)
+
+    def activate_recovery_buttons(self):
+        """Enable resume and restart buttons when download encounters an error"""
+        if hasattr(self, 'resume_button') and hasattr(self, 'restart_button'):
+            self.resume_button.config(state=tk.NORMAL)
+            self.restart_button.config(state=tk.NORMAL)
+            # Disable cancel button since download is already interrupted
+            if hasattr(self, 'cancel_button'):
+                self.cancel_button.config(state=tk.DISABLED)
+
+    def deactivate_recovery_buttons(self):
+        """Disable resume and restart buttons when a new download starts or completes"""
+        if hasattr(self, 'resume_button') and hasattr(self, 'restart_button'):
+            self.resume_button.config(state=tk.DISABLED)
+            self.restart_button.config(state=tk.DISABLED)
+
+    def resume_download(self):
+        """Resume download with the --continue flag"""
+        if hasattr(self, 'current_url') and hasattr(self, 'current_format_string') and hasattr(self, 'current_output_path'):
+            self.status_label.config(text="Resuming download...", foreground="blue")
+            self.progress['value'] = 0
             
-            print(f"Download error: {str(e)}")
+            # Disable resume/restart buttons and enable cancel button
+            self.deactivate_recovery_buttons()
+            if hasattr(self, 'cancel_button'):
+                self.cancel_button.config(state=tk.NORMAL)
+            
+            # Reset cancel flags
+            self.cancel_requested = False
+            self.download_cancelled = False
+            
+            # Start download thread with resume=True
+            download_thread = threading.Thread(
+                target=self.download_thread,
+                args=(self.current_url, self.current_format_string, self.current_output_path, True)
+            )
+            download_thread.daemon = True
+            download_thread.start()
+
+    def restart_download(self):
+        """Restart download with the --no-continue flag"""
+        if hasattr(self, 'current_url') and hasattr(self, 'current_format_string') and hasattr(self, 'current_output_path'):
+            self.status_label.config(text="Restarting download...", foreground="blue")
+            self.progress['value'] = 0
+            
+            # Disable resume/restart buttons and enable cancel button
+            self.deactivate_recovery_buttons()
+            if hasattr(self, 'cancel_button'):
+                self.cancel_button.config(state=tk.NORMAL)
+            
+            # Reset cancel flags
+            self.cancel_requested = False
+            self.download_cancelled = False
+            
+            # Start download thread with resume=False (restart from beginning)
+            download_thread = threading.Thread(
+                target=self.download_thread,
+                args=(self.current_url, self.current_format_string, self.current_output_path, False)
+            )
+            download_thread.daemon = True
+            download_thread.start()
+
+    def on_download_complete(self):
+        """Cleanup after download is complete"""
+        self.status_label.config(text="Download completed successfully!", foreground="green")
+        self.progress['value'] = 100
+        
+        # Disable all download control buttons
+        if hasattr(self, 'cancel_button'):
+            self.cancel_button.config(state=tk.DISABLED)
+        self.deactivate_recovery_buttons()
+
+    def cancel_download(self):
+        print("Cancel download requested")
+        self.cancel_requested = True
+        self.download_cancelled = True
+        self.status_label.config(text="Cancelling download...", foreground="orange")
+        
+        # Disable the cancel button to prevent multiple cancellations
+        if hasattr(self, 'cancel_button'):
+            self.cancel_button.config(state=tk.DISABLED)
 
     def on_download_complete(self):
         if not hasattr(self, 'download_cancelled') or not self.download_cancelled:
