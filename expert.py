@@ -155,9 +155,9 @@ class ExpertGui:
         all_formats = video_formats + audio_formats
         
         self.output_format = tk.StringVar(value="mp4")
-        format_dropdown = ttk.Combobox(conv_frame, textvariable=self.output_format, 
+        self.format_combobox = ttk.Combobox(conv_frame, textvariable=self.output_format, 
                                     values=all_formats, state="readonly", width=10)
-        format_dropdown.pack(side='left', padx=5)
+        self.format_combobox.pack(side='left', padx=5)
         
         # Quality presets - inline
         ttk.Label(conv_frame, text="Quality:").pack(side='left', padx=(10, 5))
@@ -189,6 +189,7 @@ class ExpertGui:
             self.update_format_options()
 
     #Update format options based on the input file type
+
     def update_format_options(self, event=None):
         input_file = self.file_entry.get()
         if not input_file or not os.path.exists(input_file):
@@ -203,28 +204,39 @@ class ExpertGui:
             
             has_video = 'video' in streams
             
-            # Update format dropdown based on file type
-            format_dropdown = self.output_format.master  # Get the combobox widget
+            # Find all comboboxes that have self.output_format as their textvariable
+            format_dropdown = None
+            for widget in self.parent.winfo_children():
+                if isinstance(widget, ttk.Frame):  # Check frames
+                    for child in widget.winfo_children():
+                        if isinstance(child, ttk.Frame):  # Check nested frames
+                            for grandchild in child.winfo_children():
+                                if isinstance(grandchild, ttk.Combobox) and grandchild.cget('textvariable') == str(self.output_format):
+                                    format_dropdown = grandchild
+                                    break
             
+            if not format_dropdown:
+                print("Could not find format dropdown widget")
+                return
+                
             if has_video:
-                # For video files, show all format options
                 audio_formats = ["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"]
                 video_formats = ["mp4", "mkv", "mov", "webm", "avi", "gif"]
                 all_formats = video_formats + audio_formats
                 format_dropdown['values'] = all_formats
             else:
-                # For audio files, show only audio formats
                 audio_formats = ["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"]
                 format_dropdown['values'] = audio_formats
                 
-                # If current format is video, switch to default audio
                 current_format = self.output_format.get()
                 if current_format not in audio_formats:
                     self.output_format.set("mp3")
         
         except Exception as e:
             print(f"Error detecting file type: {str(e)}")
-        
+            import traceback
+            print(traceback.format_exc())
+
     def create_terminal_section(self, parent):
         # Terminal frame
         terminal_frame = ttk.LabelFrame(parent, text="Terminal Output")
