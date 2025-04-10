@@ -1,5 +1,4 @@
 import os
-import platform
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import threading
@@ -10,6 +9,7 @@ import re
 import yt_dlp
 import queue
 import time
+import platform
 import sys
 from io import StringIO
 
@@ -239,9 +239,8 @@ class ExpertGui:
         convert_btn = ttk.Button(conv_frame, text="Convert", command=self.start_conversion)
         convert_btn.pack(side='left', padx=(15, 5))
                 
-
+    #browse for input files
     def browse_file(self):
-        """Browse for input file"""
         file_path = filedialog.askopenfilename(
             title="Select media file",
             filetypes=[
@@ -328,7 +327,8 @@ class ExpertGui:
         toggle_frame = ttk.Frame(terminal_frame)
         toggle_frame.pack(fill='x')
         
-        self.show_terminal = tk.BooleanVar(value=True)
+        # Change the default value to False here
+        self.show_terminal = tk.BooleanVar(value=False)
         toggle_btn = ttk.Checkbutton(
             toggle_frame, 
             text="Show Terminal Output", 
@@ -344,6 +344,9 @@ class ExpertGui:
         self.terminal_text = scrolledtext.ScrolledText(terminal_frame, height=10, wrap=tk.WORD)
         self.terminal_text.pack(fill='both', expand=True, padx=5, pady=5)
         self.terminal_text.config(state=tk.DISABLED)
+        
+        # Make sure the terminal is initially hidden based on the checkbox state
+        self.toggle_terminal_visibility()
     
     #saving location frame
     def create_save_progress_section(self, parent):
@@ -731,15 +734,7 @@ class ExpertGui:
             # Determine input type (audio or video)
             probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', 
                         '-of', 'default=noprint_wrappers=1:nokey=1', input_file]
-            
-            # Configure subprocess to hide window
-            startupinfo = None
-            if platform.system() == 'Windows':
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                startupinfo.wShowWindow = subprocess.SW_HIDE
-            
-            result = subprocess.run(probe_cmd, capture_output=True, text=True, startupinfo=startupinfo)
+            result = subprocess.run(probe_cmd, capture_output=True, text=True)
             streams = result.stdout.strip().split('\n')
             
             has_video = 'video' in streams
@@ -761,8 +756,7 @@ class ExpertGui:
             
             # Handle format-specific options based on quality preset
             if is_audio_output:
-                # Audio settings based on quality presets, this are some of command you can add or modify base on your understanding on ffmpeg
-                # Not all commands are fully tested
+                # Audio settings based on quality presets
                 if output_format == 'mp3':
                     if quality_preset == 'High':
                         cmd.extend(['-c:a', 'libmp3lame', '-ar', '48000', '-ac', '2', '-b:a', '320k'])
@@ -770,6 +764,7 @@ class ExpertGui:
                         cmd.extend(['-c:a', 'libmp3lame', '-ar', '44100', '-ac', '2', '-b:a', '192k'])
                     else:  # Low
                         cmd.extend(['-c:a', 'libmp3lame', '-ar', '44100', '-ac', '2', '-b:a', '128k'])
+
                         
                 elif output_format == 'aac' or output_format == 'm4a':
                     if quality_preset == 'High':
@@ -848,48 +843,101 @@ class ExpertGui:
                         cmd.extend(['-c:v', 'mpeg4', '-q:v', '7'])
                         
                 elif output_format == 'gif':
+                    # For GIFs, we'll use a palette for better quality
                     palette_path = os.path.join(os.path.dirname(output_file), "palette.png")
                     
+                    # First pass to generate palette
                     palette_cmd = ['ffmpeg', '-i', input_file, '-vf', 
                                 'fps=10,scale=320:-1:flags=lanczos,palettegen', 
                                 '-y', palette_path]
-                    subprocess.run(palette_cmd, startupinfo=startupinfo)
+                    subprocess.run(palette_cmd)
                     
+                    # Update command to use palette
                     cmd = ['ffmpeg', '-i', input_file, '-i', palette_path, '-filter_complex',
                         'fps=10,scale=320:-1:flags=lanczos[x];[x][1:v]paletteuse',
                         '-y', output_file]
                     
+                    # Skip the rest of the processing since we've set up a special command
                     print(f"Executing: {' '.join(cmd)}")
                     self.current_process = subprocess.Popen(
                         cmd, 
                         stdout=subprocess.PIPE, 
                         stderr=subprocess.PIPE,
                         universal_newlines=True,
-                        bufsize=1,
-                        startupinfo=startupinfo
+                        bufsize=1
                     )
                     
+                    # Continue with monitoring the process
                     return self.monitor_process()
-                
-                # Add the output file
+            
+#            # Add the output file
+#            cmd.append(output_file)
+            if output_format != 'gif':
                 cmd.append(output_file)
+            
+            # Print command to terminal
+            print(f"Executing: {' '.join(cmd)}")
+            
+            # Create and store the process with platform-specific settings for minimized window
+            current_os = platform.system()
+            
+            if current_os == 'Windows':
+                # For Windows, use CREATE_NO_WINDOW flag
+                # Don't import subprocess again - it's already imported at the top
+                import ctypes
                 
-                # Print command to terminal
-                print(f"Executing: {' '.join(cmd)}")
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 6  # SW_MINIMIZE (6) for minimized window
                 
-                # Create and store the process with hidden window
                 self.current_process = subprocess.Popen(
                     cmd, 
                     stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE,
                     universal_newlines=True,
-                    bufsize=1,  # Line buffered
+                    bufsize=1,
                     startupinfo=startupinfo
                 )
+            
+            elif current_os == 'Darwin':  # macOS
+                # For macOS, use Terminal.app minimized
+                terminal_cmd = ['osascript', '-e', 
+                            'tell application "Terminal" to do script "' + 
+                            ' '.join(cmd).replace('"', '\\"') + 
+                            '" & exit']
                 
-                # Monitor the process output
-                self.monitor_process()
-                
+                self.current_process = subprocess.Popen(
+                    terminal_cmd,
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                    bufsize=1
+                )
+            
+            else:  # Linux and other Unix-like systems
+                # For Linux, start in a minimized xterm or similar terminal
+                if os.path.exists('/usr/bin/xterm'):
+                    terminal_cmd = ['xterm', '-iconic', '-e', ' '.join(cmd)]
+                    self.current_process = subprocess.Popen(
+                        terminal_cmd,
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        bufsize=1
+                    )
+                else:
+                    # Fallback if xterm is not available
+                    self.current_process = subprocess.Popen(
+                        cmd, 
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        bufsize=1
+                    )
+            
+            # Monitor the process output
+            self.monitor_process()
+            
         except Exception as e:
             self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
             print(f"Conversion error: {str(e)}")
