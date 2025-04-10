@@ -1,4 +1,5 @@
 import os
+import platform
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import threading
@@ -12,20 +13,87 @@ import time
 import sys
 from io import StringIO
 
-
 class RedirectText:
     def __init__(self, text_widget, queue):
         self.queue = queue
         self.text_widget = text_widget
-        self.original_stdout = sys.stdout
-        self.original_stderr = sys.stderr
+        # Store original stdout/stderr
+        try:
+            self.original_stdout = sys.stdout
+            self.original_stderr = sys.stderr
+        except AttributeError:
+            self.original_stdout = None
+            self.original_stderr = None
+        
+        # Set up process handling attributes
+        self.process = None
+        self.startupinfo = None
+        # Configure to hide window (Windows-specific)
+        if os.name == 'nt':
+            import subprocess
+            self.startupinfo = subprocess.STARTUPINFO()
+            self.startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            self.startupinfo.wShowWindow = 0  # SW_HIDE
 
     def write(self, string):
-        self.original_stdout.write(string)
+        # Only write to original stdout if it exists and has a write method
+        if self.original_stdout is not None:
+            try:
+                self.original_stdout.write(string)
+            except (AttributeError, IOError):
+                pass
+        # Always put the string in the queue for the GUI
         self.queue.put(string)
         
     def flush(self):
-        self.original_stdout.flush()
+        # Only flush original stdout if it exists and has a flush method
+        if self.original_stdout is not None:
+            try:
+                self.original_stdout.flush()
+            except (AttributeError, IOError):
+                pass
+    
+    def execute_command(self, command):
+        """Execute command in hidden window and redirect output to queue"""
+        import subprocess
+        import threading
+        
+        def run_process():
+            try:
+                # Run process with hidden window
+                self.process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    shell=True,
+                    universal_newlines=True,
+                    startupinfo=self.startupinfo
+                )
+                
+                # Read and redirect output
+                for line in self.process.stdout:
+                    self.write(line)
+                
+                for line in self.process.stderr:
+                    self.write(f"ERROR: {line}")
+                
+                # Wait for process to complete
+                return_code = self.process.wait()
+                self.write(f"\nProcess completed with return code: {return_code}\n")
+                
+            except Exception as e:
+                self.write(f"Error executing command: {str(e)}\n")
+        
+        # Run in thread to not block main application
+        threading.Thread(target=run_process, daemon=True).start()
+        
+    def terminate_process(self):
+        if self.process is not None:
+            try:
+                self.process.terminate()
+                self.write("\nProcess terminated.\n")
+            except Exception as e:
+                self.write(f"Error terminating process: {str(e)}\n")
 
 class ExpertGui:
     def __init__(self, parent):
@@ -189,7 +257,6 @@ class ExpertGui:
             self.update_format_options()
 
     #Update format options based on the input file type
-
     def update_format_options(self, event=None):
         input_file = self.file_entry.get()
         if not input_file or not os.path.exists(input_file):
@@ -204,33 +271,48 @@ class ExpertGui:
             
             has_video = 'video' in streams
             
-            # Find all comboboxes that have self.output_format as their textvariable
-            format_dropdown = None
-            for widget in self.parent.winfo_children():
-                if isinstance(widget, ttk.Frame):  # Check frames
-                    for child in widget.winfo_children():
-                        if isinstance(child, ttk.Frame):  # Check nested frames
-                            for grandchild in child.winfo_children():
-                                if isinstance(grandchild, ttk.Combobox) and grandchild.cget('textvariable') == str(self.output_format):
-                                    format_dropdown = grandchild
-                                    break
+            # Detect input file format
+            format_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'format=format_name', 
+                    '-of', 'default=noprint_wrappers=1:nokey=1', input_file]
+            format_result = subprocess.run(format_cmd, capture_output=True, text=True)
+            input_format = format_result.stdout.strip().lower()
+            
+            # Use the direct reference to the format dropdown that was saved during initialization
+            format_dropdown = self.format_combobox  # Use the reference created in create_converter_section
             
             if not format_dropdown:
                 print("Could not find format dropdown widget")
                 return
                 
+            # Prepare format lists
+            audio_formats = ["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"]
+            video_formats = ["mp4", "mkv", "mov", "webm", "avi", "gif"]
+            
+            # Store current format selection
+            current_format = self.output_format.get()
+            
+            # Filter formats to exclude the input format to prevent self-destruction
             if has_video:
-                audio_formats = ["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"]
-                video_formats = ["mp4", "mkv", "mov", "webm", "avi", "gif"]
-                all_formats = video_formats + audio_formats
-                format_dropdown['values'] = all_formats
+                all_formats = [fmt for fmt in video_formats + audio_formats if fmt not in input_format]
             else:
-                audio_formats = ["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"]
-                format_dropdown['values'] = audio_formats
+                all_formats = [fmt for fmt in audio_formats if fmt not in input_format]
                 
-                current_format = self.output_format.get()
-                if current_format not in audio_formats:
-                    self.output_format.set("mp3")
+            # If we've filtered out all formats (rare edge case), add a safe default
+            if not all_formats:
+                if has_video:
+                    all_formats = ["mkv"] if "mp4" in input_format else ["mp4"]
+                else:
+                    all_formats = ["m4a"] if "mp3" in input_format else ["mp3"]
+            
+            # Update dropdown values
+            format_dropdown['values'] = all_formats
+            
+            # If the previously selected format is still valid, keep it
+            if current_format in all_formats:
+                self.output_format.set(current_format)
+            else:
+                # Otherwise set to a safe default
+                self.output_format.set(all_formats[0])
         
         except Exception as e:
             print(f"Error detecting file type: {str(e)}")
@@ -620,7 +702,7 @@ class ExpertGui:
         
         # Reset UI
         self.progress_bar['value'] = 0
-        self.progress_bar.config(mode='indeterminate')
+        self.progress_bar.config(mode='determinate')
         self.progress_bar.start()
         self.status_label.config(text="Converting...")
         self.cancel_btn.config(state='normal')
@@ -649,7 +731,15 @@ class ExpertGui:
             # Determine input type (audio or video)
             probe_cmd = ['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', 
                         '-of', 'default=noprint_wrappers=1:nokey=1', input_file]
-            result = subprocess.run(probe_cmd, capture_output=True, text=True)
+            
+            # Configure subprocess to hide window
+            startupinfo = None
+            if platform.system() == 'Windows':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE
+            
+            result = subprocess.run(probe_cmd, capture_output=True, text=True, startupinfo=startupinfo)
             streams = result.stdout.strip().split('\n')
             
             has_video = 'video' in streams
@@ -758,51 +848,48 @@ class ExpertGui:
                         cmd.extend(['-c:v', 'mpeg4', '-q:v', '7'])
                         
                 elif output_format == 'gif':
-                    # For GIFs, we'll use a palette for better quality
                     palette_path = os.path.join(os.path.dirname(output_file), "palette.png")
                     
-                    # First pass to generate palette
                     palette_cmd = ['ffmpeg', '-i', input_file, '-vf', 
                                 'fps=10,scale=320:-1:flags=lanczos,palettegen', 
                                 '-y', palette_path]
-                    subprocess.run(palette_cmd)
+                    subprocess.run(palette_cmd, startupinfo=startupinfo)
                     
-                    # Update command to use palette
                     cmd = ['ffmpeg', '-i', input_file, '-i', palette_path, '-filter_complex',
                         'fps=10,scale=320:-1:flags=lanczos[x];[x][1:v]paletteuse',
                         '-y', output_file]
                     
-                    # Skip the rest of the processing since we've set up a special command
                     print(f"Executing: {' '.join(cmd)}")
                     self.current_process = subprocess.Popen(
                         cmd, 
                         stdout=subprocess.PIPE, 
                         stderr=subprocess.PIPE,
                         universal_newlines=True,
-                        bufsize=1
+                        bufsize=1,
+                        startupinfo=startupinfo
                     )
                     
-                    # Continue with monitoring the process
                     return self.monitor_process()
-            
-            # Add the output file
-            cmd.append(output_file)
-            
-            # Print command to terminal
-            print(f"Executing: {' '.join(cmd)}")
-            
-            # Create and store the process
-            self.current_process = subprocess.Popen(
-                cmd, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-                bufsize=1  # Line buffered
-            )
-            
-            # Monitor the process output
-            self.monitor_process()
-            
+                
+                # Add the output file
+                cmd.append(output_file)
+                
+                # Print command to terminal
+                print(f"Executing: {' '.join(cmd)}")
+                
+                # Create and store the process with hidden window
+                self.current_process = subprocess.Popen(
+                    cmd, 
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                    bufsize=1,  # Line buffered
+                    startupinfo=startupinfo
+                )
+                
+                # Monitor the process output
+                self.monitor_process()
+                
         except Exception as e:
             self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
             print(f"Conversion error: {str(e)}")
@@ -832,7 +919,7 @@ class ExpertGui:
             returncode = self.current_process.wait()
             
             if returncode == 0:
-                self.parent.after(0, lambda: self.status_label.config(text=f"Conversion completed successfully"))
+                self.parent.after(0, lambda: self.status_label.config(text=f"Conversion completed successfully: {self.current_output_file}"))
                 self.parent.after(0, lambda: self.progress_bar.config(value=100))
                 print(f"Conversion completed successfully: {self.current_output_file}")
             else:
@@ -850,7 +937,7 @@ class ExpertGui:
         self.current_process = None
         self.conversion_in_progress = False
         self.parent.after(0, lambda: self.progress_bar.stop())
-        self.parent.after(0, lambda: self.progress_bar.config(mode='determinate'))
+        self.parent.after(0, lambda: self.progress_bar.config(mode='determinate', style='TProgressbar'))
         self.parent.after(0, lambda: self.cancel_btn.config(state='disabled'))
 
     #Cancel the ongoing conversion
