@@ -977,10 +977,29 @@ class HomeGui(ttk.Frame):
     def update_download_progress(self, d):
         if hasattr(self, 'cancel_requested') and self.cancel_requested:
             raise Exception("Download cancelled by user")
+        
+        # Initialize download tracker if doesn't exist
+        if not hasattr(self, 'download_tracker'):
+            self.download_tracker = {
+                'total_steps': 3,  # Video download, audio download, merge
+                'current_step': 1,
+                'phase_name': 'Video',
+                'format_type': None
+            }
             
+        # Detect format type from first download
+        if self.download_tracker['format_type'] is None:
+            format_id = d.get('info_dict', {}).get('format_id', '')
+            if 'video' in format_id and 'audio' not in format_id:
+                self.download_tracker['format_type'] = 'separate'  # Separate video+audio
+            else:
+                self.download_tracker['format_type'] = 'combined'  # Single download
+                self.download_tracker['total_steps'] = 1
+        
         if d['status'] == 'downloading':
             downloaded = d.get('downloaded_bytes', 0)
-            total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)            
+            total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
+            
             # Get filename information
             filename = d.get('filename', '').split('/')[-1].split('\\')[-1]  # Extract just the filename
             if len(filename) > 30:  # Truncate if too long
@@ -988,34 +1007,71 @@ class HomeGui(ttk.Frame):
             
             # Calculate percentage if total size is known
             if total > 0:
-                percentage = (downloaded / total) * 100
-                percent_text = f"{percentage:.1f}%"                
+                # Calculate current file percentage
+                file_percentage = (downloaded / total) * 100
+                
+                # Calculate overall percentage based on steps
+                if self.download_tracker['format_type'] == 'separate':
+                    # For separate video+audio: video=0-40%, audio=40-80%, merge=80-100%
+                    step_size = 40
+                    overall_progress = ((self.download_tracker['current_step'] - 1) * step_size) + (file_percentage * step_size / 100)
+                else:
+                    # For single file download: 0-90%, processing=90-100%
+                    overall_progress = file_percentage * 0.9
+                
+                self.progress['value'] = overall_progress
+                
+                # Format size information
                 downloaded_mb = downloaded / 1024 / 1024
                 total_mb = total / 1024 / 1024
-                size_text = f"{downloaded_mb:.1f} MB / {total_mb:.1f} MB"                
-                self.progress['value'] = percentage                
+                size_text = f"{downloaded_mb:.1f} MB / {total_mb:.1f} MB"
+                
+                # Add download speed
                 download_speed = d.get('speed', 0)
                 if download_speed:
                     speed_text = f"{download_speed / 1024 / 1024:.2f} MB/s"
-                    status_text = f"Downloading: {filename} - {percent_text} ({size_text}) at {speed_text}"
                 else:
-                    status_text = f"Downloading: {filename} - {percent_text} ({size_text})"
-                    
-                # Update the status label with proper font handling
+                    speed_text = "calculating..."
+                
+                # Prepare status text with phase indicator
+                if self.download_tracker['format_type'] == 'separate':
+                    phase_name = self.download_tracker['phase_name']
+                    status_text = f"Downloading {phase_name} ({self.download_tracker['current_step']}/{self.download_tracker['total_steps']-1}): {filename} - {file_percentage:.1f}% ({size_text}) at {speed_text}"
+                else:
+                    status_text = f"Downloading: {filename} - {file_percentage:.1f}% ({size_text}) at {speed_text}"
+                
+                # Update the status label
                 self.status_label.config(text=status_text)
                 
-                # Forcing update of the UI, Hah to show that im serios
+                # Force update of the UI
                 self.status_label.update_idletasks()
                 self.progress.update_idletasks()
             else:
+                # Unknown total size
                 downloaded_mb = downloaded / 1024 / 1024
                 self.status_label.config(text=f"Downloading: {filename} - {downloaded_mb:.1f} MB (size unknown)")
         
         elif d['status'] == 'finished':
-            # Get filename information for the completed download
+            # Get filename information
             filename = d.get('filename', '').split('/')[-1].split('\\')[-1]
-            self.status_label.config(text=f"Download of {filename} finished. Processing file...", foreground="blue")
-            self.progress['value'] = 0
+            
+            if self.download_tracker['format_type'] == 'separate':
+                if self.download_tracker['current_step'] == 1:
+                    # Video finished, now downloading audio
+                    self.download_tracker['current_step'] = 2
+                    self.download_tracker['phase_name'] = 'Audio'
+                    self.status_label.config(text="Video downloaded. Starting audio download...", foreground="blue")
+                elif self.download_tracker['current_step'] == 2:
+                    # Audio finished, now merging
+                    self.download_tracker['current_step'] = 3
+                    self.status_label.config(text="Audio downloaded. Merging video and audio...", foreground="blue")
+                    self.progress['value'] = 80
+                # Note: The merge completion will be handled by on_download_complete
+            else:
+                # Single format - just show processing
+                self.status_label.config(text=f"Download finished. Processing file...", foreground="blue")
+                self.progress['value'] = 90
+            
             self.progress.update_idletasks()
 
     def download_thread(self, url, format_string, output_path, resume=False):
@@ -1026,8 +1082,9 @@ class HomeGui(ttk.Frame):
             # Base options for yt-dlp - minimal configuration to let yt-dlp handle everything
             ydl_opts = {
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-                'progress_hooks': [self.update_download_progress],
                 'verbose': True,
+                'progress_hooks': [self.update_download_progress],
+                'postprocessor_hooks': [self.update_processing_progress],
             }
             
             # Handle resume option
@@ -1094,14 +1151,14 @@ class HomeGui(ttk.Frame):
             
             # Check if user cancelled during info extraction
             if hasattr(self, 'cancel_requested') and self.cancel_requested:
-                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="orange"))
+                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="red"))
                 self.parent.after(0, lambda: self.progress.config(value=0))
                 if hasattr(self, 'cancel_button'):
                     self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
                 self.cancel_requested = False
                 return
                     
-            # Execute the download with yt-dlp - let yt-dlp handle everything
+            # Execute the download with yt-dlp - let yt-dlp handle everything for simplictyy
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 download_result = ydl.download([url])
                 
@@ -1116,7 +1173,7 @@ class HomeGui(ttk.Frame):
         except Exception as e:
             if str(e) == "Download cancelled by user":
                 # Handle cancellation gracefully
-                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="orange"))
+                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="red"))
                 self.parent.after(0, lambda: self.progress.config(value=0))
                 if hasattr(self, 'cancel_button'):
                     self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
@@ -1132,6 +1189,18 @@ class HomeGui(ttk.Frame):
                 # Enable resume and restart buttons when errors occur
                 self.parent.after(0, self.activate_recovery_buttons)
                 return  # Important: Don't call on_download_complete for errors
+
+    def update_processing_progress(self, d):
+        if d['status'] == 'started':
+            action = d.get('postprocessor', 'Processing')
+            self.parent.after(0, lambda: self.status_label.config(
+                text=f"{action} in progress...", foreground="black"))
+            # Set progress to indeterminate or at 95% to indicate processing
+            self.parent.after(0, lambda: self.progress.config(value=95))
+        elif d['status'] == 'finished':
+            self.parent.after(0, lambda: self.status_label.config(
+                text="Finalizing download...", foreground="black"))
+            self.parent.after(0, lambda: self.progress.config(value=98))
 
     def init_recovery_buttons(self, button_frame):
         self.resume_button = ttk.Button(button_frame, text="▶️ Resume", command=self.resume_download, state=tk.DISABLED)
@@ -1201,7 +1270,6 @@ class HomeGui(ttk.Frame):
             download_thread.start()
 
     def on_download_complete(self):
-        """Cleanup after download is complete"""
         self.status_label.config(text="Download completed successfully!", foreground="green")
         self.progress['value'] = 100
         
@@ -1209,16 +1277,31 @@ class HomeGui(ttk.Frame):
         if hasattr(self, 'cancel_button'):
             self.cancel_button.config(state=tk.DISABLED)
         self.deactivate_recovery_buttons()
+        if hasattr(self, 'download_tracker'):
+            del self.download_tracker
 
     def cancel_download(self):
-        print("Cancel download requested")
+        print("Cancel download requested")       
+        # Determine what phase we're in for a more specific message
+        if hasattr(self, 'download_tracker') and self.download_tracker.get('current_step', 0) > 1:
+            # We're either downloading audio or merging
+            if self.download_tracker['current_step'] == 2:
+                message = "You're currently downloading the audio component which will be automatically merged with the video. Cancelling now will lose both downloads.\n\nAre you sure you want to cancel?"
+            else:  # Step 3 - merging
+                message = "The download is complete and files are being merged. Cancelling now might result in corrupted files.\n\nAre you sure you want to cancel?"
+        else:
+            # We're in the first step or single download
+            message = "Download is in progress. Are you sure you want to cancel?"        
+        confirm = messagebox.askyesno("Confirm Cancellation", message)
+        if not confirm:
+            return
+        
+        # Proceed with cancellation
         self.cancel_requested = True
         self.download_cancelled = True
-        self.status_label.config(text="Cancelling download...", foreground="orange")
-        
-        # Disable the cancel button to prevent multiple cancellations
+        self.status_label.config(text="Cancelling download...", foreground="red")        
         if hasattr(self, 'cancel_button'):
-            self.cancel_button.config(state=tk.DISABLED)
+            self.cancel_button.config(state=tk.DISABLED)#escaping multiple cancelation
 
     def on_download_complete(self):
         if not hasattr(self, 'download_cancelled') or not self.download_cancelled:
