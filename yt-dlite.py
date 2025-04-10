@@ -626,7 +626,7 @@ class YouTubeDownloaderGUI:
         contact_info.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
 
         ttk.Label(info_content_frame, text="Developed by:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Label(info_content_frame, text="winner_nova").grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(info_content_frame, text="1winner137").grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
 
         ttk.Label(info_content_frame, text="Version:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
         ttk.Label(info_content_frame, text="yt-dlite v1.0").grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
