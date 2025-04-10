@@ -148,21 +148,27 @@ class PlaylistHandler:
         # Update available formats based on type selection
         if format_type == "video":
             formats = [
-                "mp4 (1080p)", 
-                "mp4 (720p)", 
-                "mp4 (480p)",
-                "mp4 (360p)",
-                "mp4 (240p)",
-                "webm (1080p)",
-                "webm (720p)", 
-                "webm (480p)",
-                "webm (360p)",
-                "webm (240p)",
-                "mkv (Best Quality)",
-                "mp4 (Best Quality)",
-                "mp4 (Smallest Size)"
+                "MP4 - (Best Quality- Automatic)",
+                "MP4 - 4K (Ultra HD)",
+                "MP4 - 1440p (Crisp Detail)",
+                "MP4 - 1080p (HD Quality)",
+                "MP4 - 720p (Balanced Quality)",
+                "MP4 - 480p (Lower Data)",
+                "MP4 - 360p (Mobile Friendly)",
+                "MP4 - 240p (Minimal Data)",
+                "WEBM - 1080p (High Quality)",
+                "WEBM - 720p (Balanced)",
+                "WEBM - 480p (Lower Data)",
+                "WEBM - 360p (Mobile Friendly)",
+                "WEBM - 240p (Minimal Data)",
+                "MKV - Best Quality",
+                "MP4 - Best Quality",
+                "MP4 - Smallest Size"
             ]
             format_values = [
+                "bestvideo[ext=mp4]+bestaudio[ext=mp4]/best[ext=mp4]/best --merge-output-format mp4 --embed-thumbnail --add-metadata",
+                "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=mp4]/best[ext=mp4][height<=2160]/best --merge-output-format mp4 --embed-thumbnail --add-metadata",
+                "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=mp4]/best[ext=mp4][height<=1440]/best --merge-output-format mp4 --embed-thumbnail --add-metadata",
                 "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4][height<=1080]/best --embed-thumbnail --add-metadata",
                 "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best --embed-thumbnail --add-metadata",
                 "bestvideo[ext=mp4][height<=480]+bestaudio[ext=m4a]/best[ext=mp4][height<=480]/best --embed-thumbnail --add-metadata",
@@ -179,9 +185,9 @@ class PlaylistHandler:
             ]
         else:  # audio
             formats = [
-                "MP3 (320kbps)",
-                "MP3 (192kbps)", 
-                "MP3 (128kbps)",
+                "MP3 - 320kbps(High Quality)",
+                "MP3 - 192kbps(Medium Quality))", 
+                "MP3 - 128kbps(Low Quality))",
                 "M4A (High Quality)", 
                 "M4A (Medium Quality)",
                 "OGG (High Quality)",
