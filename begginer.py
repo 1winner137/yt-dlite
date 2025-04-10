@@ -721,14 +721,14 @@ class HomeGui(ttk.Frame):
         media_type_frame.pack(fill=tk.X, pady=5)
         
         video_format_options = [
-            ("MP4 - Best Quality", "bestvideo[ext=mp4]+bestaudio[ext=mp4]/best[ext=mp4]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
-            ("MP4 - 4K", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=mp4]/best[ext=mp4][height<=2160]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
-            ("MP4 - 1440p", "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=mp4]/best[ext=mp4][height<=1440]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
-            ("MP4 - 1080p", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=mp4]/best[ext=mp4][height<=1080]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
-            ("MP4 - 720p", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=mp4]/best[ext=mp4][height<=720]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
-            ("MP4 - 480p", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=mp4]/best[ext=mp4][height<=480]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
-            ("MP4 - 360p", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=mp4]/best[ext=mp4][height<=360]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
-            ("MP4 - 240p", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=mp4]/best[ext=mp4][height<=240]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - Best Quality(Auto)", "bestvideo[ext=mp4]+bestaudio[ext=mp4]/best[ext=mp4]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 4K (Ultra HD)", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=mp4]/best[ext=mp4][height<=2160]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 1440p(Crisp Details)", "bestvideo[ext=mp4][height<=1440]+bestaudio[ext=mp4]/best[ext=mp4][height<=1440]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 1080p(HD quality)", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=mp4]/best[ext=mp4][height<=1080]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 720p(Balanced quality)", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=mp4]/best[ext=mp4][height<=720]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 480p(Good for small screen)", "bestvideo[ext=mp4][height<=480]+bestaudio[ext=mp4]/best[ext=mp4][height<=480]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 360p(Mobile friendly)", "bestvideo[ext=mp4][height<=360]+bestaudio[ext=mp4]/best[ext=mp4][height<=360]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
+            ("MP4 - 240p(Lower data usage)", "bestvideo[ext=mp4][height<=240]+bestaudio[ext=mp4]/best[ext=mp4][height<=240]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
             ("MP4 - Smallest Size", "worstvideo[ext=mp4]+worstaudio[ext=mp4]/worst[ext=mp4]/worst --merge-output-format mp4 --embed-thumbnail --add-metadata"),
             ("WebM - Best Quality", "bestvideo[ext=webm]+bestaudio[ext=webm]/best[ext=webm]/best --merge-output-format webm --embed-thumbnail --add-metadata"),
             ("WebM - 1080p", "bestvideo[ext=webm][height<=1080]+bestaudio[ext=webm]/best[ext=webm][height<=1080]/best --merge-output-format webm --embed-thumbnail --add-metadata"),
@@ -743,11 +743,11 @@ class HomeGui(ttk.Frame):
         ]
 
         audio_format_options = [
-            ("MP3 - 320kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 320K --embed-thumbnail --add-metadata"),
-            ("MP3 - 256kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 256K --embed-thumbnail --add-metadata"),
-            ("MP3 - 192kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 192K --embed-thumbnail --add-metadata"),
-            ("MP3 - 128kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 128K --embed-thumbnail --add-metadata"),
-            ("MP3 - 96kbps", "bestaudio/best -x --audio-format mp3 --audio-quality 96K --embed-thumbnail --add-metadata"),
+            ("MP3 - 320kbps(Best quality)", "bestaudio/best -x --audio-format mp3 --audio-quality 320K --embed-thumbnail --add-metadata"),
+            ("MP3 - 256kbps(High quality)", "bestaudio/best -x --audio-format mp3 --audio-quality 256K --embed-thumbnail --add-metadata"),
+            ("MP3 - 192kbps(Standard quality)", "bestaudio/best -x --audio-format mp3 --audio-quality 192K --embed-thumbnail --add-metadata"),
+            ("MP3 - 128kbps(Good for mobile)", "bestaudio/best -x --audio-format mp3 --audio-quality 128K --embed-thumbnail --add-metadata"),
+            ("MP3 - 96kbps(low data usage)", "bestaudio/best -x --audio-format mp3 --audio-quality 96K --embed-thumbnail --add-metadata"),
             ("M4A - Best Quality", "bestaudio/best -x --audio-format m4a --audio-quality 0 --embed-thumbnail --add-metadata"),
             ("M4A - Medium Quality", "bestaudio/best -x --audio-format m4a --audio-quality 2 --embed-thumbnail --add-metadata"),
             ("OGG - Best Quality", "bestaudio/best -x --audio-format vorbis --audio-quality 0 --embed-thumbnail --add-metadata"),
