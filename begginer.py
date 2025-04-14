@@ -1,8 +1,14 @@
+import contextlib
+import copy
+import hashlib
+import json
 import os
+import queue
 import re
 import sys
 import time
 import threading
+import types
 import urllib.request
 import webbrowser
 import requests
@@ -46,10 +52,15 @@ class HomeGui(ttk.Frame):
         search_label.grid(row=0, column=0, padx=5, sticky="w")
         
         # Create Entry with placeholder
-        self.search_entry = ttk.Entry(search_frame)
+
+        placeholder = "Search anything or paste link (URL)"
+
+        self.search_entry = ttk.Entry(search_frame, foreground="gray")
         self.search_entry.grid(row=0, column=1, padx=5, sticky="ew")
-        self.search_entry.insert(0, "how to use yt-dlite")
-        self.search_entry.bind("<FocusIn>", lambda event: self.search_entry.delete(0, tk.END) if self.search_entry.get() == "how to use yt-dlite" else None)
+        self.search_entry.insert(0, placeholder)
+
+        self.search_entry.bind("<FocusIn>", lambda e: (self.search_entry.delete(0, tk.END), self.search_entry.config(foreground="black")) if self.search_entry.get() == placeholder else None)
+        self.search_entry.bind("<FocusOut>", lambda e: (self.search_entry.insert(0, placeholder), self.search_entry.config(foreground="gray")) if not self.search_entry.get() else None)
         self.search_entry.bind("<Return>", lambda event: self.search_engine())
         
         # Buttons in search frame
@@ -64,7 +75,14 @@ class HomeGui(ttk.Frame):
 
         self.cancel_button = ttk.Button(button_frame, text="X Cancel", command=self.cancel_search)
         self.cancel_button.pack(side=tk.LEFT, padx=2)
-        
+
+        # Set default download state path
+        self.download_state_path = os.path.join(
+            os.path.expanduser("~"),
+            "Downloads",
+            "yt-dlite",
+            ".download_state"
+        )
 
         # Scrollable Frame for Results from searching
         self.result_frame = ttk.Frame(self.main_frame)
@@ -112,7 +130,7 @@ class HomeGui(ttk.Frame):
             "        SIMPLIFY           ",
             "          SHARE           ",
             "           ↑↑↑           ",
-            "↑↑  Type any thing or paste link in search bar ↑↑ ",
+            "↑↑  Type anything or paste link in search bar ↑↑ ",
         ]
 
         self.arrow_labels = []
@@ -132,14 +150,35 @@ class HomeGui(ttk.Frame):
         # Animate
         self.animate_arrows()
 
+        # Display tips in black color
+        def open_website(event):
+            webbrowser.open("https://youtube.com/@proginsight?si=_wYmdecn0aHWIst_")
+
+        # Create the label with new text
+        tips_text = ttk.Label(
+            welcome_frame, 
+            text="Tips: For Usage click here",
+            font=("Arial", 9, "italic"),
+            foreground="maroon",
+            anchor="w",
+            justify="right",
+            cursor="hand2"  # Changes cursor to hand when hovering over the link
+        )
+        tips_text.grid(row=25, column=0, sticky="ew", pady=(0, 0))
+
+        # Bind the click event to the label
+        tips_text.bind("<Button-1>", open_website)
+
         # just to be shure scrollable frame expands
         self.scrollable_frame.rowconfigure(0, weight=1)
-
 
         # Bottom section for download controls, progress, etc...
         bottom_frame = ttk.Frame(self.main_frame)
         bottom_frame.grid(row=2, column=0, sticky="ew", pady=5)
         bottom_frame.columnconfigure(0, weight=1)
+
+        # Add incomplete downloads section
+        self.init_incomplete_downloads_section(bottom_frame)
 
         # Download path section
         download_frame = ttk.Frame(bottom_frame)
@@ -149,9 +188,6 @@ class HomeGui(ttk.Frame):
         ttk.Label(download_frame, text="Save to:", font=("Helvetica", 9, "bold")).grid(row=0, column=0, padx=5, sticky=tk.W)
         self.save_path_entry = ttk.Entry(download_frame, font=("Helvetica", 9))
         self.save_path_entry.grid(row=0, column=1, padx=5, sticky=tk.EW)
-        
-        # Automatically run search when initialized
-        #self.after(500, self.search_engine)
         
         # Set default save path to Downloads/yt-dlite folder
         downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
@@ -175,7 +211,6 @@ class HomeGui(ttk.Frame):
         self.status_label.pack(pady=1)
 
         # The buttons
-        # The buttons
         button_frame = ttk.Frame(bottom_frame)
         button_frame.pack(fill=tk.X, pady=0.1)
         
@@ -185,7 +220,301 @@ class HomeGui(ttk.Frame):
         
         # Initialize resume and restart buttons (initially disabled)
         self.init_recovery_buttons(button_frame)
+        
+        # Check for incomplete downloads when starting
+        self.after(1000, self.check_incomplete_downloads)
+
+    def init_incomplete_downloads_section(self, parent_frame):
+        # Create a collapsible frame for incomplete downloads
+        incomplete_frame = ttk.LabelFrame(parent_frame, text="Incomplete Downloads")
+        incomplete_frame.pack(fill=tk.X, pady=5, padx=5)
+        
+        # Add a treeview to display incomplete downloads
+        columns = ("title","url", "date")
+        self.incomplete_tree = ttk.Treeview(incomplete_frame, columns=columns, show="headings", height=3)
+        
+        # Configure column headings
+        self.incomplete_tree.heading("title", text="Title")
+        self.incomplete_tree.heading("url", text="URL")
+        self.incomplete_tree.heading("date", text="Date")
+        #self.incomplete_tree.heading("format", text="Format")
+        
+        # Configure column widths
+        self.incomplete_tree.column("title", width=150)
+        self.incomplete_tree.column("url", width=150)
+        self.incomplete_tree.column("date", width=150)
+        #self.incomplete_tree.column("format", width=150)
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(incomplete_frame, orient=tk.VERTICAL, command=self.incomplete_tree.yview)
+        self.incomplete_tree.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack the treeview and scrollbar
+        self.incomplete_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Add a button frame for actions
+        action_frame = ttk.Frame(incomplete_frame)
+        action_frame.pack(fill=tk.X, pady=5)
+
+        # Add resume button
+        resume_button = ttk.Button(action_frame, text="Resume Selected", command=self.resume_selected_download)
+        resume_button.pack(side=tk.LEFT, padx=5)
+
+        # Add remove button
+        remove_button = ttk.Button(action_frame, text="Remove Selected", command=self.remove_selected_download)
+        remove_button.pack(side=tk.LEFT, padx=5)
+
+        # Add a second row for Cancel button
+        cancel_frame = ttk.Frame(incomplete_frame)
+        cancel_frame.pack(fill=tk.X, pady=(0, 5))
+
+        cancel_button = ttk.Button(cancel_frame, text="Ignore for now", command=self.cancel_incomplete_downloads_section)
+        cancel_button.pack(side=tk.LEFT, padx=5)
+
+        
+        # Double-click to resume
+        self.incomplete_tree.bind("<Double-1>", lambda event: self.resume_selected_download())
+        
+        # Initially hide the incomplete downloads section
+        incomplete_frame.pack_forget()
+        self.incomplete_frame = incomplete_frame
     
+    def cancel_incomplete_downloads_section(self):
+        if hasattr(self, 'incomplete_frame') and self.incomplete_frame.winfo_ismapped():
+            self.incomplete_frame.pack_forget()
+
+    def check_incomplete_downloads(self):
+        # Get all incomplete downloads
+        incomplete_downloads = self.get_incomplete_downloads()
+        
+        # If there are incomplete downloads, show the section and populate it
+        if incomplete_downloads:
+            # Clear existing items
+            for item in self.incomplete_tree.get_children():
+                self.incomplete_tree.delete(item)
+            
+            # Add new items
+            for download in incomplete_downloads:
+                title = download.get('title', 'Unknown Title')
+                url = download.get('url', 'Unknown URL')
+                date = download.get('date', 'Unknown Date')
+
+                # Truncate URL if too long
+                display_url = url[:50] + "..." if len(url) > 50 else url
+
+                # Insert in correct column order: (title, url, date)
+                item_id = self.incomplete_tree.insert("", tk.END, values=(title, display_url, date))
+
+                # Store the full download state as a tag (optional)
+                self.incomplete_tree.item(item_id, tags=(json.dumps(download),))
+            
+            # Show the incomplete downloads section
+            self.incomplete_frame.pack(fill=tk.X, pady=5, padx=5, before=self.incomplete_frame.master.winfo_children()[1])
+        else:
+            # Hide the section if no incomplete downloads
+            self.incomplete_frame.pack_forget()
+
+    def resume_selected_download(self):
+        # Get selected item
+        selected_items = self.incomplete_tree.selection()
+        if not selected_items:
+            return
+            
+        selected_item = selected_items[0]
+        
+        # Get the download state from the item tags
+        tags = self.incomplete_tree.item(selected_item, "tags")
+        if not tags:
+            return
+            
+        try:
+            # Parse the download state
+            download_state = json.loads(tags[0])
+            
+            # Extract the necessary information
+            url = download_state.get('url')
+            format_string = download_state.get('format_string')
+            output_path = download_state.get('output_path')
+            
+            if not url or not format_string or not output_path:
+                self.status_label.config(text="Invalid download state information", foreground="red")
+                return
+                
+            # Update status
+            self.status_label.config(text=f"Resuming download: {url}")
+            
+            # Delete the JSON state file before starting the download
+            url_hash = hashlib.md5(url.encode()).hexdigest()
+            state_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "download_state")
+            state_file = os.path.join(state_dir, f"{url_hash}.json")
+            
+            if os.path.exists(state_file):
+                os.remove(state_file)
+                print(f"Deleted state file: {state_file}")
+            
+            # Set the current URL for reference
+            self.current_url = url
+            
+            # Call the existing download thread with resume=True
+            download_thread = threading.Thread(
+                target=self.download_thread,
+                args=(url, format_string, output_path, True)  # True for resume
+            )
+            download_thread.daemon = True
+            download_thread.start()
+            
+            # Remove from the tree view after starting the download
+            self.incomplete_tree.delete(selected_item)
+            
+            # Hide the section if empty
+            if not self.incomplete_tree.get_children():
+                self.incomplete_frame.pack_forget()
+                
+        except Exception as e:
+            print(f"Error resuming download: {str(e)}")
+            self.status_label.config(text=f"Error resuming download: {str(e)}", foreground="red")
+
+    def remove_selected_download(self):
+        # Get selected item
+        selected_items = self.incomplete_tree.selection()
+        if not selected_items:
+            return
+            
+        selected_item = selected_items[0]
+        
+        # Get the download state from the item tags
+        tags = self.incomplete_tree.item(selected_item, "tags")
+        if not tags:
+            return
+        
+        try:
+            # Parse the download state
+            download_state = json.loads(tags[0])
+            
+            # Get URL and title for state file deletion
+            url = download_state.get('url')
+            title = download_state.get('title', 'Unknown Title')
+            output_path = download_state.get('output_path')
+            
+            # Show confirmation dialog with title
+            if not messagebox.askyesno("Confirm Removal", f"Are you sure you want to remove the download:\n\n{title}?"):
+                return
+            
+            if url:
+                # Delete state file
+                url_hash = hashlib.md5(url.encode()).hexdigest()
+                state_file = os.path.join(
+                    self.download_state_path,
+                    f"{url_hash}.json"
+                )
+                
+                if os.path.exists(state_file):
+                    try:
+                        os.remove(state_file)
+                        print(f"Deleted state file: {state_file}")
+                    except Exception as e:
+                        print(f"Error deleting state file: {str(e)}")
+                
+                # Get the download directory
+                if output_path:
+                    download_dir = os.path.join(
+                        os.path.expanduser("~"),
+                        "Downloads",
+                        "yt-dlite"
+                    )
+                    
+                    # Advanced approach: Use string distance algorithm for better matching
+                    try:
+                        if os.path.exists(download_dir):
+                            # Extract base filename without extension from output_path if available
+                            base_name = os.path.basename(output_path) if output_path else None
+                            base_name_no_ext = os.path.splitext(base_name)[0] if base_name else None
+                            
+                            print(f"Looking for files related to: {title}")
+                            print(f"Base output filename: {base_name_no_ext}")
+                            
+                            files_deleted = 0
+                            
+                            for file in os.listdir(download_dir):
+                                if file.endswith(".part") or file.endswith(".ytdl"):
+                                    should_delete = False
+                                    
+                                    # First matching approach: Check if base_name is in the filename
+                                    if base_name_no_ext and base_name_no_ext in file:
+                                        should_delete = True
+                                    
+                                    # Second matching approach: Calculate similarity between title and filename
+                                    # Remove extensions like .part, .ytdl, .mp4, etc.
+                                    clean_filename = re.sub(r'\.(part|ytdl|mp4|webm|mkv).*$', '', file)
+                                    
+                                    # Calculate similarity using longest common substring approach
+                                    # Normalize both strings for comparison
+                                    norm_title = re.sub(r'[^\w\s]', '', title).lower()
+                                    norm_filename = re.sub(r'[^\w\s]', '', clean_filename).lower()
+                                    
+                                    # Use longest common substring as a similarity metric
+                                    lcs_length = self.longest_common_substring_length(norm_title, norm_filename)
+                                    title_length = len(norm_title)
+                                    filename_length = len(norm_filename)
+                                    
+                                    # Calculate similarity ratio (0-1)
+                                    similarity = lcs_length / min(title_length, filename_length) if min(title_length, filename_length) > 0 else 0
+                                    
+                                    print(f"File: {file}, Similarity: {similarity:.2f}")
+                                    
+                                    # If similarity is above threshold, mark for deletion
+                                    if similarity >= 0.7:  # 70% similarity threshold
+                                        should_delete = True
+                                    
+                                    if should_delete:
+                                        file_path = os.path.join(download_dir, file)
+                                        try:
+                                            os.remove(file_path)
+                                            files_deleted += 1
+                                            print(f"Deleted file: {file_path}")
+                                        except Exception as e:
+                                            print(f"Error deleting file {file_path}: {str(e)}")
+                            
+                            print(f"Total files deleted: {files_deleted}")
+                    except Exception as e:
+                        print(f"Error accessing download directory: {str(e)}")
+            
+            # Remove from the tree view
+            self.incomplete_tree.delete(selected_item)
+            
+            # Hide the section if empty
+            if not self.incomplete_tree.get_children():
+                self.incomplete_frame.pack_forget()
+                
+            # Update status to confirm removal
+            self.status_label.config(text="Download removed", foreground="green")
+            
+            # Show success message
+            messagebox.showinfo("Success", "Download removed and temporary files cleaned up.")
+                
+        except Exception as e:
+            print(f"Error removing download: {str(e)}")
+            self.status_label.config(text=f"Error removing download: {str(e)}", foreground="red")
+            messagebox.showerror("Error", f"Error removing download: {str(e)}")
+
+    def longest_common_substring_length(self, s1, s2):
+        """Calculate the length of the longest common substring between two strings."""
+        # Create a table to store lengths of longest common substrings
+        m, n = len(s1), len(s2)
+        dp = [[0] * (n + 1) for _ in range(m + 1)]
+        
+        # To store the length of the longest common substring
+        result = 0
+        
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if s1[i - 1] == s2[j - 1]:
+                    dp[i][j] = dp[i - 1][j - 1] + 1
+                    result = max(result, dp[i][j])
+        
+        return result
+            
     def blend_colors(self, color1, color2, ratio):
         r1, g1, b1 = int(color1[1:3], 16), int(color1[3:5], 16), int(color1[5:7], 16)
         r2, g2, b2 = int(color2[1:3], 16), int(color2[3:5], 16), int(color2[5:7], 16)
@@ -198,7 +527,16 @@ class HomeGui(ttk.Frame):
         step = 0
         
         # Define multiple colors for cycling
-        colors = ["#ffffff", "#3a7ca5", "#f44336", "#4CAF50", "#9C27B0"]
+        colors = [
+            "#1a2a6c", "#b21f1f", "#fdbb2d",  # Sunset gradient
+            "#00b09b", "#96c93d",             # Green meadow
+            "#ff758c", "#ff7eb3",             # Pink love
+            "#7f7fd5", "#86a8e7", "#91eae4",  # Aqua marine
+            "#4568dc", "#b06ab3",             # Purple love
+            "#43cea2", "#185a9d",             # Endless river
+            "#ff512f", "#f09819",             # Orange fun
+            "#8e2de2", "#4a00e0"              # Purple dream
+        ]
         color_index = 0
         
         def update_animation():
@@ -265,6 +603,7 @@ class HomeGui(ttk.Frame):
             self.save_path_entry.insert(0, directory)
 
     def search_engine(self):
+        self.cancel_incomplete_downloads_section()
         query = self.search_entry.get().strip()
         if not query:
             # Show message to enter a link if query is empty
@@ -651,7 +990,7 @@ class HomeGui(ttk.Frame):
             title = url.get('title', 'Download')  # Extract title from dictionary
             print(f"Extracted valid URL: {valid_url}")
             url = valid_url
-        
+        self.current_title = title #populating this for download_save state
         # Open format selection with title information
         self.open_format_selection_popup(url, title)
 
@@ -682,6 +1021,16 @@ class HomeGui(ttk.Frame):
         title_label = ttk.Label(title_frame, text="Title: Loading...", font=("Helvetica", 10))
         title_label.pack(side=tk.LEFT, anchor=tk.W)
         
+        # Flag to track if the popup is still active
+        format_popup.is_active = True
+        
+        # Handle window close event
+        def on_popup_close():
+            format_popup.is_active = False
+            format_popup.destroy()
+        
+        format_popup.protocol("WM_DELETE_WINDOW", on_popup_close)
+        
         # Update title if already available
         if title:
             title_text = title if len(title) <= 55 else title[:52] + "..."
@@ -701,12 +1050,20 @@ class HomeGui(ttk.Frame):
                         info = ydl.extract_info(url, download=False)
                         fetched_title = info.get('title', 'Unknown Title')
                         
-                        # Update title label in main thread
-                        title_text = fetched_title if len(fetched_title) <= 55 else fetched_title[:52] + "..."
-                        format_popup.after(0, lambda: title_label.config(text=f"Title: {title_text}"))
+                        # Update title label in main thread only if popup is still active
+                        def update_title():
+                            if format_popup.is_active and format_popup.winfo_exists():
+                                title_text = fetched_title if len(fetched_title) <= 55 else fetched_title[:52] + "..."
+                                title_label.config(text=f"Title: {title_text}")
+                        self.current_titled = fetched_title  # populate for save download state
+                        format_popup.after(0, update_title)
                 except Exception as e:
                     # If there's an error, just show a generic title
-                    format_popup.after(0, lambda: title_label.config(text="Title: Unable to retrieve"))
+                    def update_error():
+                        if format_popup.is_active and format_popup.winfo_exists():
+                            title_label.config(text="Title: Unable to retrieve")
+                    
+                    format_popup.after(0, update_error)
                     print(f"Error fetching title: {str(e)}")
             
             # Start title fetching in background
@@ -719,7 +1076,7 @@ class HomeGui(ttk.Frame):
         # Media type selection frame
         media_type_frame = ttk.Frame(container)
         media_type_frame.pack(fill=tk.X, pady=5)
-        
+                
         video_format_options = [
             ("MP4 - Best Quality(Auto)", "bestvideo[ext=mp4]+bestaudio[ext=mp4]/best[ext=mp4]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
             ("MP4 - 4K (Ultra HD)", "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=mp4]/best[ext=mp4][height<=2160]/best --merge-output-format mp4 --embed-thumbnail --add-metadata"),
@@ -1076,15 +1433,86 @@ class HomeGui(ttk.Frame):
 
     def download_thread(self, url, format_string, output_path, resume=False):
         try:
-            # Update status to show initial download preparation
-            self.parent.after(0, lambda: self.status_label.config(text=f"Preparing to download from {url}...", foreground="black"))
+            # Use queues for thread-safe communication with UI
+            if not hasattr(self, 'ui_update_queue'):
+                self.ui_update_queue = queue.Queue()
+                # Start the UI updater in the main thread
+                self.start_ui_updater()
             
-            # Base options for yt-dlp - minimal configuration to let yt-dlp handle everything
+            # Setup initialization timer
+            self.init_start_time = time.time()
+            self.download_started = False
+            self.init_timer = threading.Timer(5.0, self.show_init_status, args=["Preparing engine..."])
+            self.init_timer.daemon = True
+            self.init_timer.start()
+            
+            # Setup second status timer
+            self.almost_there_timer = threading.Timer(10.0, self.show_init_status, args=["Almost there..."])
+            self.almost_there_timer.daemon = True
+            self.almost_there_timer.start()
+            
+            # Setup network check timer
+            self.network_check_timer = threading.Timer(15.0, self.show_init_status, args=["Checking network..."])
+            self.network_check_timer.daemon = True
+            self.network_check_timer.start()
+            
+            # Queue initial status update
+            self.ui_update_queue.put({
+                'type': 'status',
+                'text': f"Preparing to download from {url}...",
+                'color': "black"
+            })
+            
+            # Limit update frequency
+            self.update_interval = 0.5  # seconds between UI updates
+            self.last_update_time = time.time()
+            
+            # Save current download info in case we need to resume later
+            self.save_download_state(url, format_string, output_path)
+            
+            # Throttled progress hook with queue-based updates
+            def throttled_progress_hook(d):
+                # Mark download as started to cancel initialization timers
+                if not self.download_started:
+                    self.download_started = True
+                    self.cancel_init_timers()
+                    
+                current_time = time.time()
+                if current_time - getattr(self, 'last_update_time', 0) > self.update_interval:
+                    self.last_update_time = current_time
+                    
+                    # Queue the update instead of directly modifying UI
+                    self.ui_update_queue.put({
+                        'type': 'download_progress',
+                        'data': copy.deepcopy(d)  # Create a copy to avoid reference issues
+                    })
+            
+            # Enhanced processing hook with throttling
+            def throttled_processing_hook(d):
+                # Mark download as started to cancel initialization timers
+                if not self.download_started:
+                    self.download_started = True
+                    self.cancel_init_timers()
+                    
+                current_time = time.time()
+                if current_time - getattr(self, 'last_update_time', 0) > self.update_interval:
+                    self.last_update_time = current_time
+                    
+                    # Queue the update
+                    self.ui_update_queue.put({
+                        'type': 'processing_progress',
+                        'data': copy.deepcopy(d)
+                    })
+            
+            # Base options for yt-dlp - optimized configuration
             ydl_opts = {
                 'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
                 'verbose': True,
-                'progress_hooks': [self.update_download_progress],
-                'postprocessor_hooks': [self.update_processing_progress],
+                'progress_hooks': [throttled_progress_hook],
+                'postprocessor_hooks': [throttled_processing_hook],
+                'noprogress': False,
+                'quiet': False,
+                'buffersize': 4096,  # Larger buffer for better performance
             }
             
             # Handle resume option
@@ -1092,18 +1520,18 @@ class HomeGui(ttk.Frame):
                 ydl_opts['continue'] = True
             
             print(f"Download thread: Resume mode: {resume}")
-            print("Download thread: yt-dlp options before format handling:")
-            print(ydl_opts)
             
-            # Set format-specific options for audio or video with minimal interference
+            # Set format-specific options with cleaner approach
             if 'audio' in format_string:
-                # For audio extraction
+                # Extract the format specification
                 if format_string.startswith('-f '):
-                    ydl_opts['format'] = format_string[3:].split(' --')[0].strip()
+                    format_spec = format_string[3:].split(' --')[0].strip()
                 else:
-                    ydl_opts['format'] = format_string.split(' --')[0].strip()
-                    
-                # Set postprocessors based on the requested audio format
+                    format_spec = format_string.split(' --')[0].strip()
+                
+                ydl_opts['format'] = format_spec
+                
+                # Configure audio extraction based on format
                 if 'mp3' in format_string:
                     quality = '320' if '320K' in format_string else '192' if '192K' in format_string else '128'
                     ydl_opts['postprocessors'] = [{
@@ -1127,7 +1555,7 @@ class HomeGui(ttk.Frame):
                     }]
                     ydl_opts['extractaudio'] = True
             else:
-                # For video formats - pass format string directly
+                # For video formats
                 if format_string.startswith('-f '):
                     ydl_opts['format'] = format_string[3:].strip()
                 else:
@@ -1135,60 +1563,266 @@ class HomeGui(ttk.Frame):
             
             print("Download thread: Final yt-dlp options:")
             print(ydl_opts)
-            print(f"Download thread: Executing yt-dlp for URL: {url}")
-            print(f"Download thread: With format: {format_string}")
             
-            # Get video information - minimal configuration to let yt-dlp handle everything
+            # Get video information with better error handling
             video_title = "Unknown Title"
             try:
-                with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+                # Create a separate YoutubeDL instance just for info extraction
+                with contextlib.closing(yt_dlp.YoutubeDL({'quiet': True, 'socket_timeout': 30})) as ydl:
                     info_dict = ydl.extract_info(url, download=False)
                     video_title = info_dict.get('title', 'Unknown Title')
-                    self.parent.after(0, lambda: self.status_label.config(text=f"Starting download: {video_title}", foreground="black"))
+                    
+                    # Mark download as started to cancel initialization timers
+                    self.download_started = True
+                    self.cancel_init_timers()
+                    
+                    # Queue title update
+                    self.ui_update_queue.put({
+                        'type': 'status',
+                        'text': f"Starting download: {video_title}",
+                        'color': "black"
+                    })
             except Exception as info_error:
                 print(f"Info extraction error: {str(info_error)}")
-                self.parent.after(0, lambda: self.status_label.config(text=f"Starting download from {url}", foreground="black"))
-            
-            # Check if user cancelled during info extraction
-            if hasattr(self, 'cancel_requested') and self.cancel_requested:
-                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="red"))
-                self.parent.after(0, lambda: self.progress.config(value=0))
-                if hasattr(self, 'cancel_button'):
-                    self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
-                self.cancel_requested = False
-                return
-                    
-            # Execute the download with yt-dlp - let yt-dlp handle everything for simplictyy
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                download_result = ydl.download([url])
                 
-            # Check for successful download
-            if download_result == 0:
-                # If we get here, download completed successfully
-                self.parent.after(0, self.on_download_complete)
-            else:
-                # Download returned non-zero status (error)
-                raise Exception(f"yt-dlp returned error code: {download_result}")
+                # Queue generic status update
+                self.ui_update_queue.put({
+                    'type': 'status',
+                    'text': f"Starting download from {url}",
+                    'color': "black"
+                })
+            
+            # Check for cancellation
+            if hasattr(self, 'cancel_requested') and self.cancel_requested:
+                self.cancel_init_timers()
+                self.ui_update_queue.put({
+                    'type': 'cancelled',
+                    'text': "Download cancelled by user."
+                })
+                return
+            
+            # For audio downloads, update UI about processing stage
+            if 'audio' in format_string:
+                self.ui_update_queue.put({
+                    'type': 'status',
+                    'text': f"Downloading '{video_title}' - Processing will follow",
+                    'color': "black"
+                })
+            
+            # Execute the download with a separate yt-dlp instance
+            try:
+                # Check cancellation before starting
+                if hasattr(self, 'cancel_requested') and self.cancel_requested:
+                    self.cancel_init_timers()
+                    raise Exception("Download cancelled by user")
+                
+                # Create a cancellable context for yt-dlp
+                with contextlib.closing(yt_dlp.YoutubeDL(ydl_opts)) as ydl:
+                    # Add cancellation check
+                    original_report_error = ydl.report_error
+                    
+                    def cancellable_report_error(self, *args, **kwargs):
+                        # Check for cancellation during long operations
+                        if hasattr(self.params['_downloader'], 'cancel_requested') and self.params['_downloader'].cancel_requested:
+                            raise Exception("Download cancelled by user")
+                        return original_report_error(self, *args, **kwargs)
+                    
+                    # Monkey patch the report_error method to enable cancellation
+                    ydl.report_error = types.MethodType(cancellable_report_error, ydl)
+                    ydl.params['_downloader'] = self
+                    
+                    # Execute download
+                    download_result = ydl.download([url])
+                
+                # Handle the download result
+                if download_result == 0:
+                    # Success - queue completion notification
+                    self.ui_update_queue.put({
+                        'type': 'complete'
+                    })
+                    # Clear saved download state as it completed successfully
+                    self.clear_download_state()
+                else:
+                    # Error code returned
+                    raise Exception(f"yt-dlp returned error code: {download_result}")
+                    
+            except Exception as download_error:
+                # Handle download errors
+                self.cancel_init_timers()
+                if str(download_error) == "Download cancelled by user":
+                    self.ui_update_queue.put({
+                        'type': 'cancelled',
+                        'text': "Download cancelled by user."
+                    })
+                else:
+                    error_msg = f"Error: {str(download_error)}"
+                    print(f"Download error: {str(download_error)}")
+                    
+                    self.ui_update_queue.put({
+                        'type': 'error',
+                        'text': error_msg
+                    })
                     
         except Exception as e:
-            if str(e) == "Download cancelled by user":
-                # Handle cancellation gracefully
-                self.parent.after(0, lambda: self.status_label.config(text="Download cancelled by user.", foreground="red"))
-                self.parent.after(0, lambda: self.progress.config(value=0))
-                if hasattr(self, 'cancel_button'):
-                    self.parent.after(0, lambda: self.cancel_button.config(state=tk.DISABLED))
-                self.cancel_requested = False
-            else:
-                # Display the original error for debugging - pass through unmodified
-                error_msg = f"Error: {str(e)}"
-                print(f"Download error: {str(e)}")
-                
-                # Use after() to safely update UI from a thread
-                self.parent.after(0, lambda: self.status_label.config(text=error_msg, foreground="black"))
-                
-                # Enable resume and restart buttons when errors occur
-                self.parent.after(0, self.activate_recovery_buttons)
-                return  # Important: Don't call on_download_complete for errors
+            # Handle thread-level exceptions
+            self.cancel_init_timers()
+            error_msg = f"Thread error: {str(e)}"
+            print(error_msg)
+            
+            self.ui_update_queue.put({
+                'type': 'error',
+                'text': error_msg
+            })
+
+    def show_init_status(self, message):
+        """Display initialization status messages if download hasn't started yet"""
+        if not hasattr(self, 'download_started') or not self.download_started:
+            self.ui_update_queue.put({
+                'type': 'status',
+                'text': message,
+                'color': "blue"
+            })
+
+    def cancel_init_timers(self):
+        """Cancel all initialization timers when no longer needed"""
+        for timer_name in ['init_timer', 'almost_there_timer', 'network_check_timer']:
+            if hasattr(self, timer_name):
+                timer = getattr(self, timer_name)
+                if timer and timer.is_alive():
+                    timer.cancel()
+
+    def start_ui_updater(self):
+        if not hasattr(self, 'ui_updater_running'):
+            self.ui_updater_running = True
+            
+            def process_ui_updates():
+                try:
+                    # Process all pending updates
+                    while not self.ui_update_queue.empty():
+                        update = self.ui_update_queue.get_nowait()
+                        
+                        # Handle different types of updates
+                        if update['type'] == 'status':
+                            self.status_label.config(text=update['text'], foreground=update.get('color', 'black'))
+                        
+                        elif update['type'] == 'download_progress':
+                            self.update_download_progress(update['data'])
+                        
+                        elif update['type'] == 'processing_progress':
+                            self.update_processing_progress(update['data'])
+                        
+                        elif update['type'] == 'complete':
+                            self.on_download_complete()
+                        
+                        elif update['type'] == 'cancelled':
+                            self.status_label.config(text=update['text'], foreground="red")
+                            self.progress.config(value=0)
+                            if hasattr(self, 'cancel_button'):
+                                self.cancel_button.config(state=tk.DISABLED)
+                            self.cancel_requested = False
+                        
+                        elif update['type'] == 'error':
+                            self.status_label.config(text=update['text'], foreground="red")
+                            self.activate_recovery_buttons()
+                        
+                        # Mark this update as processed
+                        self.ui_update_queue.task_done()
+                    
+                    # Continue processing if updater is still running
+                    if hasattr(self, 'ui_updater_running') and self.ui_updater_running:
+                        self.parent.after(100, process_ui_updates)
+                    
+                except Exception as e:
+                    print(f"UI update error: {str(e)}")
+                    # Reschedule even after error
+                    if hasattr(self, 'ui_updater_running') and self.ui_updater_running:
+                        self.parent.after(100, process_ui_updates)
+            
+            # Start the update processor
+            self.parent.after(0, process_ui_updates)
+
+    def save_download_state(self, url, format_string, output_path):
+        try:
+            state_dir = self.download_state_path
+            os.makedirs(state_dir, exist_ok=True)
+            url_hash = hashlib.md5(url.encode()).hexdigest()
+            state_file = os.path.join(state_dir, f"{url_hash}.json")
+
+            download_state = {                
+                'title': getattr(self, 'current_title', None) or getattr(self, 'current_titled', None) or 'Unknown Title',
+                'url': url,
+                'format_string': format_string,
+                'output_path': output_path,
+                'timestamp': time.time(),
+                'completed': False
+            }
+
+            with open(state_file, 'w') as f:
+                json.dump(download_state, f)
+            print(f"Download state saved to {state_file}")
+
+        except Exception as e:
+            print(f"Error saving download state: {str(e)}")
+
+
+    def clear_download_state(self):
+        try:
+            if hasattr(self, 'current_url'):
+                url_hash = hashlib.md5(self.current_url.encode()).hexdigest()
+                state_dir = self.download_state_path
+                state_file = os.path.join(state_dir, f"{url_hash}.json")
+
+                if os.path.exists(state_file):
+                    os.remove(state_file)
+                    print(f"Removed completed download state: {state_file}")
+
+        except Exception as e:
+            print(f"Error clearing download state: {str(e)}")
+
+
+    def get_incomplete_downloads(self):
+        try:
+            state_dir = self.download_state_path
+            if not os.path.exists(state_dir):
+                return []
+
+            incomplete_downloads = []
+            state_files = [f for f in os.listdir(state_dir) if f.endswith('.json')]
+
+            for state_file in state_files:
+                try:
+                    with open(os.path.join(state_dir, state_file), 'r') as f:
+                        download_state = json.load(f)
+                        if not download_state.get('completed', False):
+                            if 'timestamp' in download_state:
+                                download_state['date'] = time.strftime(
+                                    '%Y-%m-%d %H:%M:%S',
+                                    time.localtime(download_state['timestamp'])
+                                )
+                            incomplete_downloads.append(download_state)
+                except Exception as e:
+                    print(f"Error reading state file {state_file}: {str(e)}")
+
+            return incomplete_downloads
+
+        except Exception as e:
+            print(f"Error getting incomplete downloads: {str(e)}")
+            return []
+
+
+    def cleanup(self):
+        # Stop the UI updater
+        if hasattr(self, 'ui_updater_running'):
+            self.ui_updater_running = False
+        
+        # Clear any queues
+        if hasattr(self, 'ui_update_queue'):
+            while not self.ui_update_queue.empty():
+                try:
+                    self.ui_update_queue.get_nowait()
+                    self.ui_update_queue.task_done()
+                except:
+                    pass
 
     def update_processing_progress(self, d):
         if d['status'] == 'started':
@@ -1201,6 +1835,9 @@ class HomeGui(ttk.Frame):
             self.parent.after(0, lambda: self.status_label.config(
                 text="Finalizing download...", foreground="black"))
             self.parent.after(0, lambda: self.progress.config(value=98))
+            
+            # Set a 5-second timeout to force completion if it gets stuck
+            self.finalize_timer = self.parent.after(5000, self.on_download_complete)
 
     def init_recovery_buttons(self, button_frame):
         self.resume_button = ttk.Button(button_frame, text="▶️ Resume", command=self.resume_download, state=tk.DISABLED)
@@ -1218,13 +1855,11 @@ class HomeGui(ttk.Frame):
                 self.cancel_button.config(state=tk.DISABLED)
 
     def deactivate_recovery_buttons(self):
-        """Disable resume and restart buttons when a new download starts or completes"""
         if hasattr(self, 'resume_button') and hasattr(self, 'restart_button'):
             self.resume_button.config(state=tk.DISABLED)
             self.restart_button.config(state=tk.DISABLED)
 
     def resume_download(self):
-        """Resume download with the --continue flag"""
         if hasattr(self, 'current_url') and hasattr(self, 'current_format_string') and hasattr(self, 'current_output_path'):
             self.status_label.config(text="Resuming download...", foreground="blue")
             self.progress['value'] = 0
@@ -1247,7 +1882,6 @@ class HomeGui(ttk.Frame):
             download_thread.start()
 
     def restart_download(self):
-        """Restart download with the --no-continue flag"""
         if hasattr(self, 'current_url') and hasattr(self, 'current_format_string') and hasattr(self, 'current_output_path'):
             self.status_label.config(text="Restarting download...", foreground="blue")
             self.progress['value'] = 0
