@@ -1287,7 +1287,7 @@ class YouTubeDownloaderGUI:
             for fmt in self.formats:
                 if fmt.get('format_id') == format_id:
                     selected_format = fmt
-                    # If acodec is 'none', it's a video-only format i choose to know by that
+                    # If acodec is 'none', it's a video-only format
                     is_video_only = (fmt.get('acodec') == 'none')
                     break                    
         
@@ -1314,6 +1314,10 @@ class YouTubeDownloaderGUI:
                 args=(save_path,),
                 daemon=True
             )
+            self.download_thread.start()
+            # Switch to log tab to show progress
+            self.notebook.select(1)  # Index 1 is the Verbose tab
+            
         else:
             # Handle video download with potential format combination
             # Configure the format string for download
@@ -1321,39 +1325,50 @@ class YouTubeDownloaderGUI:
             # Track if we're using a combined format
             is_combined_format = False
                     
-            # If it's a video-only format and we're in video mode, combine with audio
+            # If it's a video-only format and we're in video mode, ask user about merging
             media_type = self.media_type.get()
             if media_type == 'video' and is_video_only and selected_format:
-                is_combined_format = True
-                # Get the container format (extension)
-                container = selected_format.get('ext', '')
-                            
-                # Construct format string based on container
-                if container == 'mp4':
-                    # For MP4, prefer mp4/m4a audio
-                    download_format = f"{format_id}+bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio"
-                elif container == 'webm':
-                    # For WebM, prefer webm audio
-                    download_format = f"{format_id}+bestaudio[ext=webm]/bestaudio"
-                else:
-                    # For other containers, use any best audio
-                    download_format = f"{format_id}+bestaudio"
-                                
-                self.log(f"Selected format {format_id} is video-only. Auto-combining with audio using format string: {download_format}", "INFO")
-                messagebox.showinfo("Auto-Combining",
-                            "Selected format doesn't include audio. Will automatically download and combine with the best audio track.")
+                # Ask user if they want to merge with audio
+                user_choice = messagebox.askyesnocancel("Video Only Format", 
+                                "The selected format doesn't include audio. Do you want to download and combine with audio?\n\n"
+                                "• Yes - Download and combine with best audio\n"
+                                "• No - Download video only without audio\n"
+                                "• Cancel - Abort the download")
+                
+                if user_choice is None:  # User closed the dialog or clicked Cancel
+                    self.log("Download canceled by user", "INFO")
+                    return
                     
+                elif user_choice:  # User chose to merge with audio
+                    is_combined_format = True
+                    # Get the container format (extension)
+                    container = selected_format.get('ext', '')
+                            
+                    # Construct format string based on container
+                    if container == 'mp4':
+                        # For MP4, prefer mp4/m4a audio
+                        download_format = f"{format_id}+bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio"
+                    elif container == 'webm':
+                        # For WebM, prefer webm audio
+                        download_format = f"{format_id}+bestaudio[ext=webm]/bestaudio"
+                    else:
+                        # For other containers, use any best audio
+                        download_format = f"{format_id}+bestaudio"
+                                
+                    self.log(f"User selected to combine with audio. Using format string: {download_format}", "INFO")
+                else:
+                    # User chose not to merge - download video only
+                    self.log(f"User selected to download video-only format: {format_id}", "INFO")
+            
             self.log(f"Starting download with format specification: {download_format}", "INFO")
             self.download_thread = threading.Thread(
                 target=self._download_thread, 
                 args=(download_format, save_path, is_combined_format),
                 daemon=True
             )
-        
-        self.download_thread.start()
-                
-        # Switch to log tab to show progress
-        self.notebook.select(1)  # Index 1 is the Verbose tab  
+            self.download_thread.start()
+            # Switch to log tab to show progress
+            self.notebook.select(1)  # Index 1 is the Verbose tab
 
     def _download_mp3(self, save_path):
         self.root.after(0, lambda: (self.status_label.config(text="Downloading MP3...")))
@@ -1803,8 +1818,24 @@ class YouTubeDownloaderGUI:
         
         # Select the most recently modified file if any were found
         if latest_file_id:
+            # First ensure all parent nodes are expanded
+            parent_id = self.downloads_tree.parent(latest_file_id)
+            if parent_id:
+                self.downloads_tree.item(parent_id, open=True)
+            
+            # Select and see the latest file
             self.downloads_tree.selection_set(latest_file_id)
             self.downloads_tree.see(latest_file_id)  # Ensure the selected item is visible
+            self.downloads_tree.focus(latest_file_id)  # Also set keyboard focus to this item
+            
+            # Update the UI
+            self.downloads_tree.update_idletasks()
+            
+            # Store the latest file path for easy access if needed elsewhere
+            if latest_file_id and hasattr(self, 'latest_file_path'):
+                file_tags = self.downloads_tree.item(latest_file_id, "tags")
+                if file_tags:
+                    self.latest_file_path = file_tags[0]
         
         self.log(f"Downloads list refreshed with {len(all_files_found)} files", "DEBUG")
 
