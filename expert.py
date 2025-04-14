@@ -898,28 +898,46 @@ class ExpertGui:
                     bufsize=1,
                     startupinfo=startupinfo
                 )
-            #
+            
             elif current_os == 'Darwin':  # macOS
+                # For macOS, use Terminal.app minimized
+                terminal_cmd = ['osascript', '-e', 
+                            'tell application "Terminal" to do script "' + 
+                            ' '.join(cmd).replace('"', '\\"') + 
+                            '" & exit']
+                
                 self.current_process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
+                    terminal_cmd,
+                    stdout=subprocess.PIPE, 
                     stderr=subprocess.PIPE,
                     universal_newlines=True,
                     bufsize=1
                 )
             
             else:  # Linux and other Unix-like systems
-                self.current_process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,
-                    bufsize=1
-                )
-
+                # For Linux, start in a minimized xterm or similar terminal
+                if os.path.exists('/usr/bin/xterm'):
+                    terminal_cmd = ['xterm', '-iconic', '-e', ' '.join(cmd)]
+                    self.current_process = subprocess.Popen(
+                        terminal_cmd,
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        bufsize=1
+                    )
+                else:
+                    # Fallback if xterm is not available
+                    self.current_process = subprocess.Popen(
+                        cmd, 
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.PIPE,
+                        universal_newlines=True,
+                        bufsize=1
+                    )
+            
             # Monitor the process output
             self.monitor_process()
-
+            
         except Exception as e:
             self.parent.after(0, lambda: self.status_label.config(text=f"Error: {str(e)}"))
             print(f"Conversion error: {str(e)}")
