@@ -1589,7 +1589,11 @@ class YouTubeDownloaderGUI:
                             self.log(f"Combined download finished: {self.current_download_path}", "INFO")
                             downloaded_file_reported = True
                             break
-        
+
+        # Add a timeout mechanism
+        start_time = time.time()
+        max_processing_time = 5  # 5 seconds timeout
+
         try:
             # Basic template for output filename - no need for unique filenames now
             base_outtmpl = os.path.join(save_path, '%(title)s-%(id)s.%(ext)s')            
@@ -1619,9 +1623,47 @@ class YouTubeDownloaderGUI:
             
             elapsed = time.time() - start_time            
             
+            # Check if we need to force-complete due to timeout
+            force_complete = (time.time() - start_time) > max_processing_time and not self.cancel_flag
+            
             if self.cancel_flag:
                 self.root.after(0, lambda: self.status_label.config(text="Download cancelled"))
                 self.log("Download was cancelled by user", "INFO")
+            elif force_complete:
+                self.log("Post-processing timeout reached, forcing completion", "WARNING")
+                self.root.after(0, lambda: self.status_label.config(text=f"Download completed in {elapsed:.1f} seconds!"))
+                self.root.after(0, lambda: messagebox.showinfo("Success", "Download completed successfully!"))
+                
+                # We may not have the current_download_path set, so try to find it
+                if not self.current_download_path:
+                    # Try to guess the file path from the template
+                    possible_path = ydl.prepare_filename(self.video_info)
+                    if os.path.exists(possible_path):
+                        self.current_download_path = possible_path
+                        self.log(f"Force detected download path: {self.current_download_path}", "INFO")
+                    else:
+                        # Look for files in the save path that were recently modified
+                        recent_files = [f for f in os.listdir(save_path) if 
+                                    os.path.isfile(os.path.join(save_path, f)) and 
+                                    time.time() - os.path.getmtime(os.path.join(save_path, f)) < elapsed + 2]
+                        if recent_files:
+                            self.current_download_path = os.path.join(save_path, recent_files[0])
+                            self.log(f"Force detected recent file: {self.current_download_path}", "INFO")
+                
+                # Proceed with the rest of the completion logic
+                if self.current_download_path:
+                    if self.current_download_path not in self.downloaded_files:
+                        self.downloaded_files.append(self.current_download_path)                        
+                    self.root.after(0, self.refresh_downloads_list)                    
+                    self.root.after(0, lambda: self.notebook.select(3))
+                    
+                    def select_new_file():
+                        for item in self.downloads_tree.get_children():
+                            if self.downloads_tree.item(item, 'values')[0] == os.path.basename(self.current_download_path):
+                                self.downloads_tree.selection_set(item)
+                                self.downloads_tree.see(item)
+                                self.on_download_selected(None)                    
+                    self.root.after(100, select_new_file)
             else:
                 self.root.after(0, lambda: self.status_label.config(text=f"Download completed in {elapsed:.1f} seconds!"))
                 self.root.after(0, lambda: messagebox.showinfo("Success", "Download completed successfully!"))
@@ -1652,7 +1694,7 @@ class YouTubeDownloaderGUI:
             else:
                 self.root.after(0, lambda: messagebox.showerror("Error", f"Download failed: {str(e)}"))
                 self.root.after(0, lambda: self.status_label.config(text="Download failed"))
-                self.log(f"Download failed: {str(e)}", "ERROR")    
+                self.log(f"Download failed: {str(e)}", "ERROR")
     #This is part of Downloads Tab
     #Refresh the downloads list in the Downloads tab with files organized by folders
     def refresh_downloads_list(self):
