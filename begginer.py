@@ -1937,7 +1937,7 @@ class HomeGui(ttk.Frame):
         # Force update of the UI
         self.status_label.update_idletasks()
         self.progress.update_idletasks()
-################################################################################33
+###############################################################################33
     def _format_time(self, seconds):
         if seconds < 60:
             return f"{seconds:.0f}s"
