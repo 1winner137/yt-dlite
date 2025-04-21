@@ -156,9 +156,9 @@ class HomeGui(ttk.Frame):
         # Create the label with new text
         tips_text = ttk.Label(
             welcome_frame, 
-            text="Tips: For Usage click here",
+            text="Tips: For Help & Usage click here",
             font=("Arial", 9, "italic"),
-            foreground="maroon",
+            foreground="green",
             anchor="w",
             justify="right",
             cursor="hand2"  # Changes cursor to hand when hovering over the link
@@ -1937,7 +1937,7 @@ class HomeGui(ttk.Frame):
         # Force update of the UI
         self.status_label.update_idletasks()
         self.progress.update_idletasks()
-###############################################################################33
+################################################################################33
     def _format_time(self, seconds):
         if seconds < 60:
             return f"{seconds:.0f}s"
