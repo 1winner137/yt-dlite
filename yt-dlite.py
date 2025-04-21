@@ -18,7 +18,6 @@ from misc import PlaylistHandler
 from expert import ExpertGui, RedirectText
 from begginer import HomeGui
 
-
 class YouTubeDownloaderGUI: 
     def __init__(self, root): 
         self.root = root 
@@ -29,7 +28,7 @@ class YouTubeDownloaderGUI:
         self.fetch_cancelled = False 
          
         # Tab mode state 
-        self.expert_mode = True  # Start with expert mode (Main tab) 
+        self.expert_mode = True  # Start with proffesional mode (Main tab) 
          
         # Theme state 
         self.dark_mode = False 
@@ -388,7 +387,7 @@ class YouTubeDownloaderGUI:
         self.video_duration_var = tk.StringVar(value="")
         self.video_channel_var = tk.StringVar(value="")
 
-        # Add subtitle option not yet programmed
+        # Add subtitle option not yet programmed for this version
         subtitle_frame = ttk.Frame(info_grid)
         subtitle_frame.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=5)
         self.subtitle_var = tk.BooleanVar(value=False)
@@ -538,7 +537,6 @@ class YouTubeDownloaderGUI:
 
     #Downloads tab start here
     def setup_downloads_tab(self):
-        """Set up the downloads history tab with video player"""
         downloads_frame = ttk.Frame(self.downloads_tab, padding="10")
         downloads_frame.pack(fill=tk.BOTH, expand=True)
         
@@ -682,7 +680,6 @@ class YouTubeDownloaderGUI:
     # To keep simple for now. but can be extended to use imported mediaplayer.py so as to have biult in player.
     #Paste from clipboard
     def paste_from_clipboard(self):
-        """Paste clipboard content to URL entry with double quotes and handle placeholder"""
         try:
             clipboard_text = self.root.clipboard_get().strip()
             if clipboard_text:
@@ -713,7 +710,6 @@ class YouTubeDownloaderGUI:
 
     #This are information fetched from video url
     def get_column_title(self, column):
-        """Get column title with sort indicator"""
         titles = {
             "format_id": "Format ID",
             "extension": "Extension",
@@ -740,19 +736,15 @@ class YouTubeDownloaderGUI:
         return titles[column]
     #Sort treeview by column with ascending/descending toggle
     def sort_treeview(self, treeview, column, treeview_key):
-        # Get all items
         items = [(treeview.set(item, column), item) for item in treeview.get_children('')]
         
         # Update sort state
         if self.sort_state[treeview_key]["column"] == column:
-            # Toggle direction if already sorting by this column
             self.sort_state[treeview_key]["direction"] = "desc" if self.sort_state[treeview_key]["direction"] == "asc" else "asc"
         else:
-            # New column, default to ascending
             self.sort_state[treeview_key]["column"] = column
             self.sort_state[treeview_key]["direction"] = "asc"
-        
-        # Update all column headings to show sort indicator
+
         for col in treeview["columns"]:
             treeview.heading(col, text=self.get_column_title(col))
         
@@ -1041,7 +1033,6 @@ class YouTubeDownloaderGUI:
             self.root.after(0, self.clear_thumbnail)
             return        
         try:
-            # Import required libraries here to avoid import issues          
             # Download the thumbnail
             with urllib.request.urlopen(thumbnail_url) as response:
                 thumbnail_data = response.read()            
@@ -1059,11 +1050,11 @@ class YouTubeDownloaderGUI:
             self.root.after(0, self.clear_thumbnail)
             
     def clear_thumbnail(self):
-        """Clear the thumbnail display"""
         self.thumbnail_image = None
         self.thumbnail_label.configure(image="", text="No thumbnail available")
+        
+    #Set the UI state during loading operations    
     def set_loading_state(self, is_loading):
-        """Set the UI state during loading operations"""
         if is_loading:
             # Disable UI elements during loading
             self.url_entry.configure(state="disabled")
@@ -1235,7 +1226,7 @@ class YouTubeDownloaderGUI:
                     self.format_tree.see(best_item)
                     self.log(f"Auto-selected best format with both video and audio: {best_format_id}", "DEBUG")
                 else:
-                    # Fallback to first item if something went wrong
+                    # Fallback to first item if something went wrong, for brevity
                     best_item = self.format_tree.get_children()[0]
                     self.format_tree.selection_set(best_item)
                     self.format_tree.see(best_item)
@@ -1248,7 +1239,6 @@ class YouTubeDownloaderGUI:
                 self.log(f"Auto-selected format: {self.format_tree.item(best_item, 'values')[0]}", "DEBUG")        
 
     def format_file_size(self, size_bytes):
-        """Format file size to human-readable format."""
         if size_bytes < 1024:
             return f"{size_bytes} B"
         elif size_bytes < 1024 * 1024:
@@ -1264,6 +1254,7 @@ class YouTubeDownloaderGUI:
             self.save_path_entry.delete(0, tk.END)
             self.save_path_entry.insert(0, directory)
             self.log(f"Save location set to: {directory}", "DEBUG")
+
     #Download stuff start here! it work in multiple downloads too.
     def start_download(self):
         selected_items = self.format_tree.selection()
@@ -1316,13 +1307,12 @@ class YouTubeDownloaderGUI:
             )
             self.download_thread.start()
             # Switch to log tab to show progress
-            self.notebook.select(1)  # Index 1 is the Verbose tab
+            self.notebook.select(1)  # Index 1 is the Verbose tab, im staying here
             
         else:
-            # Handle video download with potential format combination
+            # Handle video download with potential format combination, at main tab for now
             # Configure the format string for download
             download_format = format_id
-            # Track if we're using a combined format
             is_combined_format = False
                     
             # If it's a video-only format and we're in video mode, ask user about merging
@@ -2086,8 +2076,8 @@ class YouTubeDownloaderGUI:
         if level in ["INFO", "DEBUG", "ERROR"]:
             self.log_level = level
             self.log(f"Log level changed to {level}", "INFO")
+    #Clear log text area
     def clear_log(self):
-        """Clear the log text area"""
         self.log_text.config(state=tk.NORMAL)
         self.log_text.delete(1.0, tk.END)
         self.log_text.config(state=tk.DISABLED)
