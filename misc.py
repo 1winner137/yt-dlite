@@ -612,7 +612,6 @@ def download_item(item, output_path=None, progress_callback=None, log_func=None)
     }
         
         # For audio downloads, ensure we're extracting and converting properly
-    # For audio downloads, ensure we're extracting and converting properly
     if item_type == 'audio':
         # Parse the format string to extract options
         format_parts = format_string.split(' --')
