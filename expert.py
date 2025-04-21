@@ -17,15 +17,12 @@ class RedirectText:
     def __init__(self, text_widget, queue):
         self.queue = queue
         self.text_widget = text_widget
-        # Store original stdout/stderr
         try:
             self.original_stdout = sys.stdout
             self.original_stderr = sys.stderr
         except AttributeError:
             self.original_stdout = None
             self.original_stderr = None
-        
-        # Set up process handling attributes
         self.process = None
         self.startupinfo = None
         # Configure to hide window (Windows-specific)
@@ -36,13 +33,11 @@ class RedirectText:
             self.startupinfo.wShowWindow = 0  # SW_HIDE
 
     def write(self, string):
-        # Only write to original stdout if it exists and has a write method
         if self.original_stdout is not None:
             try:
                 self.original_stdout.write(string)
             except (AttributeError, IOError):
                 pass
-        # Always put the string in the queue for the GUI
         self.queue.put(string)
         
     def flush(self):
@@ -52,15 +47,11 @@ class RedirectText:
                 self.original_stdout.flush()
             except (AttributeError, IOError):
                 pass
-    
+
+    #Execute command in hidden window and redirect output to queue
     def execute_command(self, command):
-        """Execute command in hidden window and redirect output to queue"""
-        import subprocess
-        import threading
-        
         def run_process():
             try:
-                # Run process with hidden window
                 self.process = subprocess.Popen(
                     command,
                     stdout=subprocess.PIPE,
@@ -160,7 +151,6 @@ class ExpertGui:
         self.conversion_in_progress = False
         
     def create_downloader_section(self, parent):
-        # Label
         ttk.Label(parent, text="yt-dlp", font=('', 12, 'bold')).pack(anchor='w')
         
         # Command entry frame
@@ -197,24 +187,18 @@ class ExpertGui:
             self.cmd_entry.config(foreground='gray')
             
     def create_converter_section(self, parent):
-        # Label
-        ttk.Label(parent, text="Converter", font=('', 12, 'bold')).pack(anchor='w')
-        
+        ttk.Label(parent, text="Converter", font=('', 12, 'bold')).pack(anchor='w')        
         # Converter frame - single line
         conv_frame = ttk.Frame(parent)
-        conv_frame.pack(fill='x', pady=5)
-        
+        conv_frame.pack(fill='x', pady=5)        
         # File input
         ttk.Label(conv_frame, text="Input File:").pack(side='left', padx=(0, 5))
         self.file_entry = ttk.Entry(conv_frame)
-        self.file_entry.pack(side='left', fill='x', expand=True)
-        
+        self.file_entry.pack(side='left', fill='x', expand=True)        
         browse_btn = ttk.Button(conv_frame, text="Browse", command=self.browse_file)
-        browse_btn.pack(side='left', padx=5)
-        
+        browse_btn.pack(side='left', padx=5)        
         # Format section - inline
-        ttk.Label(conv_frame, text="Format:").pack(side='left', padx=(10, 5))
-        
+        ttk.Label(conv_frame, text="Format:").pack(side='left', padx=(10, 5))        
         # Audio formats
         audio_formats = ["mp3", "m4a", "aac", "opus", "ogg", "flac", "wav"]
         # Video formats
@@ -319,9 +303,8 @@ class ExpertGui:
             print(traceback.format_exc())
 
     def create_terminal_section(self, parent):
-        # Terminal frame
         terminal_frame = ttk.LabelFrame(parent, text="Terminal Output")
-        terminal_frame.pack(fill='both', expand=True, pady=5)
+        terminal_frame.pack(fill='both', expand=True, pady=5) #Terminal frame
         
         # Add toggle button for terminal visibility
         toggle_frame = ttk.Frame(terminal_frame)
@@ -344,8 +327,6 @@ class ExpertGui:
         self.terminal_text = scrolledtext.ScrolledText(terminal_frame, height=10, wrap=tk.WORD)
         self.terminal_text.pack(fill='both', expand=True, padx=5, pady=5)
         self.terminal_text.config(state=tk.DISABLED)
-        
-        # Make sure the terminal is initially hidden based on the checkbox state
         self.toggle_terminal_visibility()
     
     #saving location frame
@@ -546,7 +527,7 @@ class ExpertGui:
                     self.parent.after(0, lambda: self.status_label.config(text="Download finished, processing..."))
             
             # Create yt-dlp options with passthrough logger and progress hook
-            # Set verbosity to True to ensure all output is passed to terminal
+            # Set verbosity to True to ensure all output is passed to terminal, for debbuging
             ydl_opts = {
                 'progress_hooks': [progress_hook],
                 'logger': PassthroughLogger(self),
@@ -609,8 +590,8 @@ class ExpertGui:
             self.cancellation_requested = False
             print(f"Command execution error: {str(e)}")
 
+    #Cancel the current operation using a combination of flag-based approach and thread termination.
     def cancel_operation(self):
-        """Cancel the current operation using a combination of flag-based approach and thread termination."""
         try:
             # Set cancellation flag first
             self.cancellation_requested = True
@@ -669,8 +650,8 @@ class ExpertGui:
             print(f"Unexpected error during cancellation: {str(e)}")
             self.status_label.config(text="Error during cancellation")
 
+    #Handle application close event by terminating any running processes.
     def on_close(self):
-        """Handle application close event by terminating any running processes."""
         if self.download_in_progress:
             self.cancel_operation()
             # Give some time for cleanup
@@ -678,9 +659,8 @@ class ExpertGui:
         else:
             self._finish_close()
 
+    #Finalize the closing of the application & Perform any final cleanup if needed
     def _finish_close(self):
-        """Finalize the closing of the application."""
-        # Perform any final cleanup if needed
         self.parent.destroy()
         
     def start_conversion(self):
@@ -713,7 +693,7 @@ class ExpertGui:
         # Set flag
         self.conversion_in_progress = True
         
-        # Print conversion info to terminal
+        # Print conversion info to terminal, for debbuging
         print(f"Converting: {input_file}")
         print(f"Output format: {output_format}")
         print(f"Quality preset: {quality_preset}")
@@ -882,8 +862,7 @@ class ExpertGui:
             current_os = platform.system()
             
             if current_os == 'Windows':
-                # For Windows, use CREATE_NO_WINDOW flag
-                # Don't import subprocess again - it's already imported at the top
+                # For Windows, I use CREATE_NO_WINDOW flag
                 import ctypes
                 
                 startupinfo = subprocess.STARTUPINFO()
@@ -1027,14 +1006,13 @@ class ExpertGui:
             self.parent.after(0, lambda: self.progress_bar.config(value=100))
             self.parent.after(0, lambda: self.status_label.config(text="Processing file..."))
 
+    #Update the progress bar with the current conversion progress.
     def update_conversion_progress(self, progress):
-        """Update the progress bar with the current conversion progress."""
         if hasattr(self, 'progress_bar'):
             self.progress_bar.config(value=progress)
             # Optionally update status label with percentage
             self.status_label.config(text=f"Converting: {progress:.1f}%")
     
-
 # Custom logger for yt-dlp to capture all output
 class YTLogger:
     def debug(self, msg):
