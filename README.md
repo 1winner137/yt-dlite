@@ -6,16 +6,27 @@
 
 ## Features
 
-- **Dual Interface**: Use the intuitive GUI or efficient command-line interface
-- **Format Options**: Download videos in mp4, webm, and other formats
-- **Audio Extraction**: Extract audio in mp3, m4a, and more
-- **Resume Support**: Continue interrupted downloads, especiall terminal mode
-- **Format Listing**: View all available quality options before downloading
-- **Custom Output**: Specify where to save your downloads
-- **Safe Filenames**: Automatic sanitization of filenames
-- **Dark and Light**: Themes for better user experience
-- **PlayList Download** : Custom number suggest or Entire playlist download with easier
-- **Verbosity** :  Supports ERROR, DEBUG, and INFO logging levels for better troubleshooting - GUI
+- **Dual Interface**: Use the intuitive GUI or efficient command-line interface.
+- **Multiple User Modes**: Choose from Novice, Professional, or Expert modes tailored to your experience level.
+- **Dark and Light**: Switch between dark and light themes for a better user experience.
+- **Versatile Search**: Search using keywords or direct URLs for fast and flexible access to content.
+- **Multi-Download Support**: Download multiple files simultaneously with intelligent queue management.
+- **High-Resolution Support**: Handle 4K, 1080p, 720p, 480p, 360p, 240p, and other resolutions with quality preservation.
+- **Format Options**: Download videos in mp4, mkv, webm, avi, and more.
+- **Audio Extraction**: Extract audio in mp3, m4a, wav, and other formats.
+- **Video and Audio Conversion**: Convert media to a wide variety of formats using FFmpeg (mp4, mkv, avi, gif, etc.).
+- **PlayList Download**: Download entire playlists or select specific items with ease.
+- **Format Listing**: View and select from all available quality and format options before downloading.
+- **Safe Filenames**: Automatic sanitization to prevent issues with special characters.
+- **Resume Support**: Continue interrupted downloads even after closing the app or system restart.
+- **Download Control**: Pause, resume, cancel, and restart downloads anytime with session memory.
+- **Subtitle Integration**: Download and embed subtitles in various languages.
+- **Verbosity**: Supports ERROR, DEBUG, and INFO logging levels for better troubleshooting - GUI.
+- **Real-Time Monitoring**: Track download progress live with detailed logs and progress bars.
+- **Custom Output**: Browse and choose where to save your files.
+- **User-Centric Design**: Effortlessly manage downloads and settings through a clean and intuitive interface.
+- **Active User Support**: Fast assistance and continuous improvement based on user feedback.
+
 
 ## Installation
 
@@ -33,7 +44,7 @@ cd yt-dlite/installation
 # Run installation
 installation.bat
 ```
-#### Debian(Linux\Ubuntu\etc..)
+#### Debian(Linux\Ubuntu\Pop!_os\Zorin\Parrot\Mint\etc..)
 ```bash
 # Clone the repository
 git clone https://github.com/1winner137/yt-dlite.git
@@ -58,17 +69,24 @@ chmod +x ./installation_debian.sh && ./installation_debian.sh
 Launch the graphical interface with:
 
 ```bash
-python yt-dlite.py --gui
+python yt-dlitec.py --gui
 ```
 
 The GUI provides a simple interface for:
-- Entering video/audio URLs
-- Selecting output format
-- Choosing download location
-- Monitoring download progress
-- Resuming interrupted downloads
-- Freedom to choose formats
-- Dark and light mode and other features
+- Entering video/audio URLs or searching with keywords
+- Selecting output format and quality before downloading (4K, 1080p, 720p, etc.)
+- Choosing the download location with folder browsing
+- Monitoring download progress with real-time status updates
+- Resuming interrupted or incomplete downloads with session memory
+- Freedom to choose from a wide range of formats (mp4, mkv, mp3, etc.)
+- Downloading entire playlists or selecting specific items from them
+- Converting videos and audio to different formats using FFmpeg (mp4, avi, mp3, m4a, gif, etc.)
+- Switching between Dark and Light mode for better comfort
+- Managing multiple downloads with queue control
+- Accessing different user modes (Novice, Professional, Expert)
+- Embedding subtitles and converting media with professional-grade encoding
+- Viewing and controlling logs for troubleshooting (ERROR, DEBUG, INFO)
+
 
 ### Command-Line Interface
 
