@@ -52,7 +52,6 @@ class HomeGui(ttk.Frame):
         search_label.grid(row=0, column=0, padx=5, sticky="w")
         
         # Create Entry with placeholder
-
         placeholder = "Search anything or paste link (URL)"
 
         self.search_entry = ttk.Entry(search_frame, foreground="gray")
@@ -169,7 +168,7 @@ class HomeGui(ttk.Frame):
         # Bind the click event to the label
         tips_text.bind("<Button-1>", open_website)
 
-        # just to be shure scrollable frame expands
+        # just to be shure scrollable frame expands even full screen
         self.scrollable_frame.rowconfigure(0, weight=1)
 
         # Bottom section for download controls, progress, etc...
@@ -224,8 +223,8 @@ class HomeGui(ttk.Frame):
         # Check for incomplete downloads when starting
         self.after(1000, self.check_incomplete_downloads)
 
+    # Create a collapsible frame for incomplete downloads, tose appear when application startup
     def init_incomplete_downloads_section(self, parent_frame):
-        # Create a collapsible frame for incomplete downloads
         incomplete_frame = ttk.LabelFrame(parent_frame, text="Incomplete Downloads")
         incomplete_frame.pack(fill=tk.X, pady=5, padx=5)
         
@@ -257,26 +256,24 @@ class HomeGui(ttk.Frame):
         action_frame = ttk.Frame(incomplete_frame)
         action_frame.pack(fill=tk.X, pady=5)
 
-        # Add resume button
+        # Resume button
         resume_button = ttk.Button(action_frame, text="Resume Selected", command=self.resume_selected_download)
         resume_button.pack(side=tk.LEFT, padx=5)
 
-        # Add remove button
+        # Remove button
         remove_button = ttk.Button(action_frame, text="Remove Selected", command=self.remove_selected_download)
         remove_button.pack(side=tk.LEFT, padx=5)
 
-        # Add a second row for Cancel button
+        # Cancel button
         cancel_frame = ttk.Frame(incomplete_frame)
         cancel_frame.pack(fill=tk.X, pady=(0, 5))
-
         cancel_button = ttk.Button(cancel_frame, text="Ignore for now", command=self.cancel_incomplete_downloads_section)
         cancel_button.pack(side=tk.LEFT, padx=5)
-
         
         # Double-click to resume
         self.incomplete_tree.bind("<Double-1>", lambda event: self.resume_selected_download())
         
-        # Initially hide the incomplete downloads section
+        # But i initially hide the incomplete downloads sectionm until the incompletes are present.
         incomplete_frame.pack_forget()
         self.incomplete_frame = incomplete_frame
     
@@ -284,26 +281,20 @@ class HomeGui(ttk.Frame):
         if hasattr(self, 'incomplete_frame') and self.incomplete_frame.winfo_ismapped():
             self.incomplete_frame.pack_forget()
 
+    # Get all incomplete downloads
     def check_incomplete_downloads(self):
-        # Get all incomplete downloads
         incomplete_downloads = self.get_incomplete_downloads()
-        
-        # If there are incomplete downloads, show the section and populate it
         if incomplete_downloads:
             # Clear existing items
             for item in self.incomplete_tree.get_children():
-                self.incomplete_tree.delete(item)
-            
+                self.incomplete_tree.delete(item)            
             # Add new items
             for download in incomplete_downloads:
                 title = download.get('title', 'Unknown Title')
                 url = download.get('url', 'Unknown URL')
                 date = download.get('date', 'Unknown Date')
-
-                # Truncate URL if too long
+                # Truncate URL if too long, just for brevity
                 display_url = url[:50] + "..." if len(url) > 50 else url
-
-                # Insert in correct column order: (title, url, date)
                 item_id = self.incomplete_tree.insert("", tk.END, values=(title, display_url, date))
 
                 # Store the full download state as a tag (optional)
@@ -316,8 +307,7 @@ class HomeGui(ttk.Frame):
             self.incomplete_frame.pack_forget()
 
     def resume_selected_download(self):
-        # Get selected item
-        selected_items = self.incomplete_tree.selection()
+        selected_items = self.incomplete_tree.selection()# Get selected item
         if not selected_items:
             return
             
@@ -344,7 +334,7 @@ class HomeGui(ttk.Frame):
             # Update status
             self.status_label.config(text=f"Resuming download: {url}")
             
-            # Delete the JSON state file before starting the download
+            # Delete the JSON state file before starting the download, to avoid multiple json for same file
             url_hash = hashlib.md5(url.encode()).hexdigest()
             state_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "download_state")
             state_file = os.path.join(state_dir, f"{url_hash}.json")
@@ -364,7 +354,7 @@ class HomeGui(ttk.Frame):
             download_thread.daemon = True
             download_thread.start()
             
-            # Remove from the tree view after starting the download
+            # Remove from the tree view after starting the download, just to be clean
             self.incomplete_tree.delete(selected_item)
             
             # Hide the section if empty
@@ -376,8 +366,8 @@ class HomeGui(ttk.Frame):
             self.status_label.config(text=f"Error resuming download: {str(e)}", foreground="red")
 
     def remove_selected_download(self):
-        # Get selected item
-        selected_items = self.incomplete_tree.selection()
+        #when user remove incomplete download, it have to remove the incomplete downloads too.
+        selected_items = self.incomplete_tree.selection()#Get selected item
         if not selected_items:
             return
             
@@ -424,13 +414,14 @@ class HomeGui(ttk.Frame):
                         "yt-dlite"
                     )
                     
-                    # Advanced approach: Use string distance algorithm for better matching
+                    # I'm using string distance algorithm for better matching, we can improve in future if we need to
+                    # And this is when removing downloaded state and even the related files, like *.part or *.ytdl
                     try:
                         if os.path.exists(download_dir):
                             # Extract base filename without extension from output_path if available
                             base_name = os.path.basename(output_path) if output_path else None
                             base_name_no_ext = os.path.splitext(base_name)[0] if base_name else None
-                            
+                            #just for debugging
                             print(f"Looking for files related to: {title}")
                             print(f"Base output filename: {base_name_no_ext}")
                             
@@ -439,13 +430,8 @@ class HomeGui(ttk.Frame):
                             for file in os.listdir(download_dir):
                                 if file.endswith(".part") or file.endswith(".ytdl"):
                                     should_delete = False
-                                    
-                                    # First matching approach: Check if base_name is in the filename
                                     if base_name_no_ext and base_name_no_ext in file:
                                         should_delete = True
-                                    
-                                    # Second matching approach: Calculate similarity between title and filename
-                                    # Remove extensions like .part, .ytdl, .mp4, etc.
                                     clean_filename = re.sub(r'\.(part|ytdl|mp4|webm|mkv).*$', '', file)
                                     
                                     # Calculate similarity using longest common substring approach
@@ -497,9 +483,8 @@ class HomeGui(ttk.Frame):
             print(f"Error removing download: {str(e)}")
             self.status_label.config(text=f"Error removing download: {str(e)}", foreground="red")
             messagebox.showerror("Error", f"Error removing download: {str(e)}")
-
+    #Calculate the lenght of the name(substrings) in json against the incomplete download names
     def longest_common_substring_length(self, s1, s2):
-        """Calculate the length of the longest common substring between two strings."""
         # Create a table to store lengths of longest common substrings
         m, n = len(s1), len(s2)
         dp = [[0] * (n + 1) for _ in range(m + 1)]
@@ -514,7 +499,8 @@ class HomeGui(ttk.Frame):
                     result = max(result, dp[i][j])
         
         return result
-            
+
+    #For welcome animation      
     def blend_colors(self, color1, color2, ratio):
         r1, g1, b1 = int(color1[1:3], 16), int(color1[3:5], 16), int(color1[5:7], 16)
         r2, g2, b2 = int(color2[1:3], 16), int(color2[3:5], 16), int(color2[5:7], 16)
@@ -554,13 +540,13 @@ class HomeGui(ttk.Frame):
                 # Check if each individual label still exists
                 try:
                     # Staggered animation - each line starts a bit later
-                    delay = i * 1000  # milliseconds delay between lines
+                    delay = i * 1000
                     if step * 500 >= delay:  # 500ms per step
-                        progress = min(1.0, (step * 500 - delay) / 500)  # 500ms animation duration per line
+                        progress = min(1.0, (step * 500 - delay) / 500)
                         color = self.blend_colors(from_color, to_color, progress)
                         label.configure(foreground=color)
                 except (tk.TclError, AttributeError):
-                    # Skip this label if it no longer exists
+                    # Skip this label if it no longer exists 
                     continue
             
             step += 1
@@ -910,7 +896,7 @@ class HomeGui(ttk.Frame):
         ttk.Label(info_frame, text=f"Duration: {duration_str}").pack(anchor='w')
         ttk.Label(info_frame, text=f"Viewers: {view_count_str}").pack(anchor='w')
         video_frame.video_data = video
-    #Thumbanail, or bunner of the video
+    #Thumbanail, or bunner of the video, lets try to be faster when fetching
     def download_thumbnail(self, thumbnail_url, label=None):
         if label is None:
             label = self.thumbnail_label            
@@ -927,10 +913,10 @@ class HomeGui(ttk.Frame):
             return            
         
         # Use a shorter timeout for faster response
-        timeout = 5  # reduced from 10 seconds to 5 seconds
+        timeout = 5
         img_data = None
         
-        # First attempt with requests (usually faster)
+        # First attempt with requests usually it is much faster
         try:
             response = requests.get(thumbnail_url, stream=True, timeout=timeout)
             if response.status_code == 200:
@@ -982,12 +968,10 @@ class HomeGui(ttk.Frame):
     def create_download_button(self, url):
         self.status_label.config(text="Preparing download options...", foreground="blue")
         print(f"Creating download options for: {url}")
-        
-        # Extract valid URL and title if url is a dictionary
         title = None
         if isinstance(url, dict):
             valid_url = url.get('url', '')
-            title = url.get('title', 'Download')  # Extract title from dictionary
+            title = url.get('title', 'Download')
             print(f"Extracted valid URL: {valid_url}")
             url = valid_url
         self.current_title = title #populating this for download_save state
@@ -1051,6 +1035,7 @@ class HomeGui(ttk.Frame):
                         fetched_title = info.get('title', 'Unknown Title')
                         
                         # Update title label in main thread only if popup is still active
+                        #This affect download state title when saving in json, but let's ignore it for now.
                         def update_title():
                             if format_popup.is_active and format_popup.winfo_exists():
                                 title_text = fetched_title if len(fetched_title) <= 55 else fetched_title[:52] + "..."
@@ -1241,8 +1226,6 @@ class HomeGui(ttk.Frame):
             command=lambda: path_var.set(filedialog.askdirectory() or path_var.get())
         )
         browse_button.pack(side=tk.RIGHT)
-        
-        # Browse Button
         button_frame = ttk.Frame(format_popup)
         button_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=20, pady=15)
         
@@ -1261,7 +1244,6 @@ class HomeGui(ttk.Frame):
             command=lambda: [
                 format_popup.destroy(),
                 self.start_download(
-                    # If url is a dict, let start_download handle it.
                     url, 
                     # Get the base format string and add subtitle command if needed for video though
                     video_format_options[[x[0] for x in video_format_options].index(video_format_var.get())][1] + 
@@ -1362,7 +1344,7 @@ class HomeGui(ttk.Frame):
             if len(filename) > 30:  # Truncate if too long
                 filename = filename[:27] + "..."
             
-            # Calculate percentage if total size is known
+            # Calculate percentage if total size is known, there is bug here, to be fixed next version
             if total > 0:
                 # Calculate current file percentage
                 file_percentage = (downloaded / total) * 100
@@ -1643,7 +1625,6 @@ class HomeGui(ttk.Frame):
                     # Clear saved download state as it completed successfully
                     self.clear_download_state()
                 else:
-                    # Error code returned
                     raise Exception(f"yt-dlp returned error code: {download_result}")
                     
             except Exception as download_error:
@@ -1674,8 +1655,8 @@ class HomeGui(ttk.Frame):
                 'text': error_msg
             })
 
+    #Display initialization status messages if download hasn't started yet
     def show_init_status(self, message):
-        """Display initialization status messages if download hasn't started yet"""
         if not hasattr(self, 'download_started') or not self.download_started:
             self.ui_update_queue.put({
                 'type': 'status',
@@ -1683,8 +1664,8 @@ class HomeGui(ttk.Frame):
                 'color': "blue"
             })
 
+    #Cancel all initialization timers when no longer needed
     def cancel_init_timers(self):
-        """Cancel all initialization timers when no longer needed"""
         for timer_name in ['init_timer', 'almost_there_timer', 'network_check_timer']:
             if hasattr(self, timer_name):
                 timer = getattr(self, timer_name)
@@ -1957,7 +1938,6 @@ class HomeGui(ttk.Frame):
         self.status_label.update_idletasks()
         self.progress.update_idletasks()
 ################################################################################33
-
     def _format_time(self, seconds):
         if seconds < 60:
             return f"{seconds:.0f}s"
@@ -1969,7 +1949,6 @@ class HomeGui(ttk.Frame):
     def play_video(self, url):
         if url:
             webbrowser.open(url)
-
 
 if __name__ == "__main__":
     parent = tk.Tk()
