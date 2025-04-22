@@ -53,7 +53,7 @@ class YouTubeDownloaderGUI:
         self.notebook.add(self.verbose_tab, text="Log") 
         self.notebook.add(self.downloads_tab, text="Downloads") 
          
-        # Initial theme setup - moved after notebook creation 
+        # Initial theme setup
         self.setup_theme(dark_mode=False) 
                  
         self.theme_button = ttk.Button( 
