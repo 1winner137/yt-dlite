@@ -17,7 +17,7 @@ def process_playlist_url(root, url, log_func=None):
         return handler if handler.selected_format else None
     return None
 
-# Class to handle playlist operations
+# Class to handle playlist operationss
 class PlaylistHandler:
     def __init__(self, root, url, parent=None, log_func=None):
         self.root = root
