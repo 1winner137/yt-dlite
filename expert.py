@@ -568,7 +568,7 @@ class ExpertGui:
                                 print(f"Download error: {str(e)}")
                 
             except Exception as e:
-                # Handle exceptions outside yt-dlp
+                # Handle exceptions outside the YoutubeDL with
                 if "Download cancelled by user" in str(e):
                     self.parent.after(0, lambda: self.status_label.config(text="Download cancelled"))
                 else:
