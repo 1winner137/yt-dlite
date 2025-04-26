@@ -35,6 +35,14 @@
 - Python 3.6+
 - FFmpeg (required for format conversion and merging), but not MUST
 
+## Install FFmpeg (platform specific)
+- **Windows:** [Download FFmpeg](https://ffmpeg.org/download.html), extract, and add it to `PATH`.  
+  - Recommended build: [FFmpeg Git Full](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z)  
+
+- **macOS:**  brew install ffmpeg
+- **Ubuntu\Debian:** sudo apt install ffmpeg
+- **Fedora:** sudo dnf install ffmpeg
+
 ### Quick Install
 #### Windows
 ```bash
@@ -52,15 +60,6 @@ cd yt-dlite/installation
 # Run installation
 chmod +x ./installation_debian.sh && ./installation_debian.sh
 ```
-
-## Install FFmpeg (platform specific)
-- **Windows:** [Download FFmpeg](https://ffmpeg.org/download.html), extract, and add it to `PATH`.  
-  - Recommended build: [FFmpeg Git Full](https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-full.7z)  
-
-- **macOS:**  brew install ffmpeg
-- **Ubuntu\Debian:** sudo apt install ffmpeg
-- **Fedora:** sudo dnf install ffmpeg
-
 
 ## Usage
 
