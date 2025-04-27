@@ -53,7 +53,7 @@ class YouTubeDownloaderGUI:
         self.notebook.add(self.verbose_tab, text="Log") 
         self.notebook.add(self.downloads_tab, text="Downloads") 
          
-        # Initial theme setup
+        # Initial theme setup - moved after notebook creation 
         self.setup_theme(dark_mode=False) 
                  
         self.theme_button = ttk.Button( 
@@ -599,7 +599,7 @@ class YouTubeDownloaderGUI:
         
         # Top section - File preview
         preview_frame = ttk.LabelFrame(vertical_paned, text="File Preview")
-        vertical_paned.add(preview_frame, weight=70)
+        vertical_paned.add(preview_frame, weight=150)
         
         # File info
         self.preview_info_var = tk.StringVar(value="Select a file to preview")
@@ -610,66 +610,71 @@ class YouTubeDownloaderGUI:
         vertical_paned.add(info_frame, weight=30)
 
         # Create a frame with padding for the Credits
-        info_content_frame = ttk.Frame(info_frame, padding=10)
+        info_content_frame = ttk.Frame(info_frame, padding=5)  # Reduced padding
         info_content_frame.pack(fill=tk.BOTH, expand=True)
 
         # Credits with normal fields
-        ttk.Label(info_content_frame, text="updates & issues:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(info_content_frame, text="updates & issues:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=1)  # Reduced padding
         github_link = ttk.Label(info_content_frame, text="https://yt-dlite/visit", foreground="blue", cursor="hand2")
-        github_link.grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
+        github_link.grid(row=0, column=1, sticky=tk.W, padx=5, pady=1)
         github_link.bind("<Button-1>", lambda e: open_url("https://github.com/1winner137/yt-dlite/releases"))
 
-        ttk.Label(info_content_frame, text="Contact:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(info_content_frame, text="Contact:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=1)
         contact_info = ttk.Label(info_content_frame, text="1winner4win@proton.me", foreground="blue")
-        contact_info.grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        contact_info.grid(row=1, column=1, sticky=tk.W, padx=5, pady=1)
+        contact_info.bind("<Button-1>", lambda e: open_url("mailto:1winner4win@proton.me"))
 
-        ttk.Label(info_content_frame, text="Developed by:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Label(info_content_frame, text="1winner137").grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(info_content_frame, text="Developed by:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=1)
+        ttk.Label(info_content_frame, text="1winner137").grid(row=2, column=1, sticky=tk.W, padx=5, pady=1)
 
-        ttk.Label(info_content_frame, text="Version:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
-        ttk.Label(info_content_frame, text="yt-dlite v1.0").grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
+        ttk.Label(info_content_frame, text="Version:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=1)
+        ttk.Label(info_content_frame, text="yt-dlite v1.0").grid(row=3, column=1, sticky=tk.W, padx=5, pady=1)
 
-        ttk.Label(info_content_frame, text="Notes:").grid(row=4, column=0, sticky=tk.NW, padx=5, pady=2)
+        ttk.Label(info_content_frame, text="Notes:").grid(row=4, column=0, sticky=tk.NW, padx=5, pady=1)
         notes_text = "yt-dlp errors can be ignored by restarting app or fetching information again."
         notes_label = ttk.Label(info_content_frame, text=notes_text, wraplength=250)
-        notes_label.grid(row=4, column=1, sticky=tk.W, padx=5, pady=2)
+        notes_label.grid(row=4, column=1, sticky=tk.W, padx=5, pady=1)
 
         # Full-width about section
         about_frame = ttk.Frame(info_content_frame)
-        about_frame.grid(row=5, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=10)
-        about_text = "By myself I'm not fan of big size programs, limits downloads & annoying ads, I wish it could support all languages, best appealing & more fetures."
+        about_frame.grid(row=5, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)  # Reduced padding
+        about_text = "By myself I'm not fan of big size programs, limits downloads & annoying ads, I wish it could support all languages, best appealing & more features."
         about_label = ttk.Label(about_frame, text=about_text, wraplength=350, justify=tk.LEFT)
         about_label.pack(fill=tk.X, expand=True)
 
-        # Define functions at the module level, not inside the class method
+        # Define functions at the module level to skippclass level
         def copy_to_clipboard(text):
             root.clipboard_clear()
             root.clipboard_append(text)
-            messagebox.showinfo("Copied", f"{text} copied to clipboard!")
+            messagebox.showinfo("Copied", f"{text}\n copied to clipboard!.")
 
         def open_url(url):
             webbrowser.open(url)
 
         # Full-width donate section
         donate_frame = ttk.Frame(info_content_frame)
-        donate_frame.grid(row=6, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)
+        donate_frame.grid(row=6, column=0, columnspan=2, sticky=tk.EW, padx=5, pady=5)  # Reduced padding
         donate_text = "Consider donating:"
         donate_label = ttk.Label(donate_frame, text=donate_text, wraplength=350, justify=tk.LEFT)
         donate_label.pack(fill=tk.X)
 
         # Create clickable links
         btc_link = ttk.Label(donate_frame, text="BTC: bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h", foreground="green", cursor="hand2")
-        btc_link.pack(fill=tk.X)
+        btc_link.pack(fill=tk.X, pady=2)  # Added small vertical padding
         btc_link.bind("<Button-1>", lambda e: copy_to_clipboard("bc1qyr88kayp9nqve9u9jpav4kft4ln3rgu7wwqn4h"))
 
         paypal_link = ttk.Label(donate_frame, text="PayPal: winnernova7@gmail.com", foreground="green", cursor="hand2")
-        paypal_link.pack(fill=tk.X)
-        paypal_link.bind("<Button-1>", lambda e: open_url("mailto:winnernova7@gmail.com"))
+        paypal_link.pack(fill=tk.X, pady=2)  # Added small vertical padding
+        paypal_link.bind("<Button-1>", lambda e: copy_to_clipboard("winnernova7@gmail.com"))
 
-        # Just one donation GitHub link
         donate_github_link = ttk.Label(donate_frame, text="Visit donation page", foreground="green", cursor="hand2")
-        donate_github_link.pack(fill=tk.X) #you can put patreon
+        donate_github_link.pack(fill=tk.X, pady=2)  # Added small vertical padding
         donate_github_link.bind("<Button-1>", lambda e: open_url("https://github.com/1winner137/yt-dlite/blob/main/README.md#donation"))
+
+        share_link = ttk.Label(info_content_frame, text="Click here to share this release", foreground="blue", cursor="hand2")
+        share_link.grid(row=7, column=0, columnspan=2, sticky=tk.W, padx=5, pady=1)  # Reduced padding
+        share_link.bind("<Button-1>", lambda e: copy_to_clipboard("https://github.com/1winner137/yt-dlite/releases"))
+
     #Show context mnu on right click    
     def show_context_menu(self, event):
         item = self.downloads_tree.identify_row(event.y)
@@ -1566,12 +1571,12 @@ class YouTubeDownloaderGUI:
             elif d['status'] == 'error':
                 self.root.after(0, lambda: (self.status_label.config(text=f"Error: {d.get('error', 'Unknown error')}")))
                 self.log(f"Download error: {d.get('error', 'Unknown error')}", "ERROR")
-        
+
         def post_process_hook(d):
-            nonlocal downloaded_file_reported            
+            nonlocal downloaded_file_reported
             # This hook is specifically for tracking the final merged file in combined downloads
             if d['status'] == 'finished' and is_combined_format:
-                if d.get('__postprocessor', '') == 'MoveFiles' and d.get('__files_to_move', {}) and not downloaded_file_reported:
+                if d.get('__postprocessor', '') == 'Download is complete MovingFiles' and d.get('__files_to_move', {}) and not downloaded_file_reported:
                     # Get the final output file path
                     for _, dest_file in d.get('__files_to_move', {}).items():
                         if dest_file:
@@ -1649,11 +1654,13 @@ class YouTubeDownloaderGUI:
                     
                     def select_new_file():
                         for item in self.downloads_tree.get_children():
-                            if self.downloads_tree.item(item, 'values')[0] == os.path.basename(self.current_download_path):
+                            values = self.downloads_tree.item(item, 'values')
+                            if values and values[0] == os.path.basename(self.current_download_path):  # Check if 'values' is not empty
                                 self.downloads_tree.selection_set(item)
                                 self.downloads_tree.see(item)
-                                self.on_download_selected(None)                    
+                                self.on_download_selected(None)
                     self.root.after(100, select_new_file)
+
             else:
                 self.root.after(0, lambda: self.status_label.config(text=f"Download completed in {elapsed:.1f} seconds!"))
                 self.root.after(0, lambda: messagebox.showinfo("Success", "Download completed successfully!"))
@@ -1685,6 +1692,7 @@ class YouTubeDownloaderGUI:
                 self.root.after(0, lambda: messagebox.showerror("Error", f"Download failed: {str(e)}"))
                 self.root.after(0, lambda: self.status_label.config(text="Download failed"))
                 self.log(f"Download failed: {str(e)}", "ERROR")
+
     #This is part of Downloads Tab
     #Refresh the downloads list in the Downloads tab with files organized by folders
     def refresh_downloads_list(self):
