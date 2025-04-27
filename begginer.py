@@ -1916,11 +1916,123 @@ class HomeGui(ttk.Frame):
         
         # Proceed with cancellation
         self.cancel_requested = True
+        
+        # Make sure stop_event exists before setting it
+        if not hasattr(self, 'stop_event'):
+            self.stop_event = threading.Event()
         self.stop_event.set()
+        
         self.download_cancelled = True
-        self.status_label.config(text="Cancelling download...", foreground="red")        
+        
+        # Check if status_label exists before updating it
+        if hasattr(self, 'status_label'):
+            self.status_label.config(text="Cancelling download...", foreground="red")
+            
         if hasattr(self, 'cancel_button'):
-            self.cancel_button.config(state=tk.DISABLED)#escaping multiple cancelation
+            self.cancel_button.config(state=tk.DISABLED)  # escaping multiple cancelation
+            
+        try:
+            # Get current download information for file cleanup
+            current_url = getattr(self, 'current_url', None)
+            current_title = getattr(self, 'current_title', 'Unknown Title')
+            current_output_path = getattr(self, 'current_output_path', None)
+            
+            # Clean up partial files if we have URL information
+            if current_url:
+                try:
+                    # Find the download directory
+                    download_dir = os.path.join(
+                        os.path.expanduser("~"),
+                        "Downloads",
+                        "yt-dlite"
+                    )
+                    
+                    # Use the existing file deletion logic
+                    if os.path.exists(download_dir):
+                        # Extract base filename if available
+                        base_name = os.path.basename(current_output_path) if current_output_path else None
+                        base_name_no_ext = os.path.splitext(base_name)[0] if base_name else None
+                        
+                        print(f"Looking for files related to cancelled download: {current_title}")
+                        print(f"Base output filename: {base_name_no_ext}")
+                        
+                        files_deleted = 0
+                        
+                        for file in os.listdir(download_dir):
+                            if file.endswith(".part") or file.endswith(".ytdl"):
+                                should_delete = False
+                                
+                                # Check if the file matches the base name
+                                if base_name_no_ext and base_name_no_ext in file:
+                                    should_delete = True
+                                
+                                # Use similarity check as fallback
+                                if not should_delete:
+                                    clean_filename = re.sub(r'\.(part|ytdl|mp4|webm|mkv).*$', '', file)
+                                    
+                                    # Normalize both strings for comparison
+                                    norm_title = re.sub(r'[^\w\s]', '', current_title).lower()
+                                    norm_filename = re.sub(r'[^\w\s]', '', clean_filename).lower()
+                                    
+                                    # Use the similarity calculation
+                                    lcs_length = self.longest_common_substring_length(norm_title, norm_filename)
+                                    similarity = lcs_length / min(len(norm_title), len(norm_filename)) if min(len(norm_title), len(norm_filename)) > 0 else 0
+                                    
+                                    print(f"File: {file}, Similarity: {similarity:.2f}")
+                                    
+                                    # If similarity is above threshold, mark for deletion
+                                    if similarity >= 0.7:  # 70% similarity threshold
+                                        should_delete = True
+                                
+                                if should_delete:
+                                    file_path = os.path.join(download_dir, file)
+                                    try:
+                                        os.remove(file_path)
+                                        files_deleted += 1
+                                        print(f"Deleted canceled file: {file_path}")
+                                    except Exception as e:
+                                        print(f"Error deleting file {file_path}: {str(e)}")
+                        
+                        print(f"Total files deleted during cancellation: {files_deleted}")
+                        
+                        # Delete state file if it exists
+                        url_hash = hashlib.md5(current_url.encode()).hexdigest()
+                        state_file = os.path.join(
+                            self.download_state_path,
+                            f"{url_hash}.json"
+                        )
+                        
+                        if os.path.exists(state_file):
+                            try:
+                                os.remove(state_file)
+                                print(f"Deleted state file: {state_file}")
+                            except Exception as e:
+                                print(f"Error deleting state file: {str(e)}")
+                
+                except Exception as e:
+                    print(f"Error cleaning up partial files: {str(e)}")
+            
+            # Clear the download state
+            if hasattr(self, 'clear_download_state'):
+                self.clear_download_state()
+            
+            # Update UI with safety checks
+            if hasattr(self, 'progress_bar'):
+                self.progress_bar.config(value=0)
+                
+            if hasattr(self, 'status_label'):
+                self.status_label.config(text="Download cancelled", foreground="red")
+            
+            # Re-enable the download button if needed
+            if hasattr(self, 'download_button'):
+                self.download_button.config(state=tk.NORMAL)
+            
+            print("Download cancelled successfully")
+        
+        except Exception as e:
+            print(f"Unexpected error during cancellation: {str(e)}")
+            if hasattr(self, 'status_label'):
+                self.status_label.config(text=f"Error during cancellation: {str(e)}", foreground="red")
 
     def on_download_complete(self):
         if not hasattr(self, 'download_cancelled') or not self.download_cancelled:
