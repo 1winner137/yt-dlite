@@ -1,6 +1,3 @@
-#pass on documentantion - upload it also source forge
-#fix bug cancel download and remove all bad files
-#
 import contextlib
 import copy
 import hashlib
@@ -739,8 +736,9 @@ class HomeGui(ttk.Frame):
                                 text="No results found", 
                                 foreground="red"
                             ))
+                            self.cancel_buttonn.config(state=tk.DISABLED)
                         return
-
+                    
                     self.parent.after(0, lambda: self.status_label.config(text=""))
 
                     # Display a count of found videos
@@ -751,6 +749,7 @@ class HomeGui(ttk.Frame):
                             text=f"Found {video_count} videos", 
                             foreground="green"
                         ))
+                        self.cancel_buttonn.config(state=tk.DISABLED)
 
                     for i, video in enumerate(search_results['entries']):
                         if not video or not self._search_active:  
@@ -1938,19 +1937,18 @@ class HomeGui(ttk.Frame):
             current_output_path = getattr(self, 'current_output_path', None)
             
             # Clean up partial files if we have URL information
-            if current_url:
+            if current_url and current_output_path:
                 try:
-                    # Find the download directory
                     download_dir = os.path.join(
                         os.path.expanduser("~"),
                         "Downloads",
                         "yt-dlite"
                     )
                     
-                    # Use the existing file deletion logic
+                    # Use the same file deletion logic as in remove_selected_download written previoulsy
                     if os.path.exists(download_dir):
                         # Extract base filename if available
-                        base_name = os.path.basename(current_output_path) if current_output_path else None
+                        base_name = os.path.basename(current_output_path)
                         base_name_no_ext = os.path.splitext(base_name)[0] if base_name else None
                         
                         print(f"Looking for files related to cancelled download: {current_title}")
@@ -1986,28 +1984,41 @@ class HomeGui(ttk.Frame):
                                 
                                 if should_delete:
                                     file_path = os.path.join(download_dir, file)
-                                    try:
-                                        os.remove(file_path)
-                                        files_deleted += 1
-                                        print(f"Deleted canceled file: {file_path}")
-                                    except Exception as e:
-                                        print(f"Error deleting file {file_path}: {str(e)}")
+                                    retries = 3
+                                    delay = 1
+                                    for attempt in range(retries):
+                                        try:
+                                            os.remove(file_path)
+                                            files_deleted += 1
+                                            print(f"Deleted canceled file: {file_path}")
+                                            break
+                                        except PermissionError as e:
+                                            if attempt < retries - 1:
+                                                print(f"File in use. Retrying ({attempt + 1}/{retries})...")
+                                                time.sleep(delay)
+                                            else:
+                                                print(f"Error deleting file {file_path}: {e}")
+                                                break
+                                        except Exception as e:
+                                            print(f"Unexpected error deleting file {file_path}: {str(e)}")
+                                            break
                         
                         print(f"Total files deleted during cancellation: {files_deleted}")
                         
                         # Delete state file if it exists
-                        url_hash = hashlib.md5(current_url.encode()).hexdigest()
-                        state_file = os.path.join(
-                            self.download_state_path,
-                            f"{url_hash}.json"
-                        )
-                        
-                        if os.path.exists(state_file):
-                            try:
-                                os.remove(state_file)
-                                print(f"Deleted state file: {state_file}")
-                            except Exception as e:
-                                print(f"Error deleting state file: {str(e)}")
+                        if current_url:
+                            url_hash = hashlib.md5(current_url.encode()).hexdigest()
+                            state_file = os.path.join(
+                                self.download_state_path,
+                                f"{url_hash}.json"
+                            )
+                            
+                            if os.path.exists(state_file):
+                                try:
+                                    os.remove(state_file)
+                                    print(f"Deleted state file: {state_file}")
+                                except Exception as e:
+                                    print(f"Error deleting state file: {str(e)}")
                 
                 except Exception as e:
                     print(f"Error cleaning up partial files: {str(e)}")
