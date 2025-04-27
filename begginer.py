@@ -29,6 +29,7 @@ class HomeGui(ttk.Frame):
         self._search_active = True 
         self.is_downloading = False
         self.cancel_requested = False
+        self.stop_event = threading.Event()
         
         # Configure styles
         self.style = ttk.Style()
@@ -72,8 +73,9 @@ class HomeGui(ttk.Frame):
         self.search_button = ttk.Button(button_frame, text="🔍Search", command=self.search_engine)
         self.search_button.pack(side=tk.LEFT, padx=2)
 
-        self.cancel_button = ttk.Button(button_frame, text="X Cancel", command=self.cancel_search)
-        self.cancel_button.pack(side=tk.LEFT, padx=2)
+        self.cancel_buttonn = ttk.Button(button_frame, text="X Cancel", command=self.cancel_search)
+        self.cancel_buttonn.pack(side=tk.LEFT, padx=2)
+        self.cancel_buttonn.config(state=tk.DISABLED)
 
         # Set default download state path
         self.download_state_path = os.path.join(
@@ -216,6 +218,7 @@ class HomeGui(ttk.Frame):
         # Cancel button
         self.cancel_button = ttk.Button(button_frame, text="Cancel", command=self.cancel_download)
         self.cancel_button.pack(side=tk.LEFT, padx=1)
+        self.cancel_button.config(state=tk.DISABLED)
         
         # Initialize resume and restart buttons (initially disabled)
         self.init_recovery_buttons(button_frame)
@@ -590,6 +593,7 @@ class HomeGui(ttk.Frame):
 
     def search_engine(self):
         self.cancel_incomplete_downloads_section()
+        self.cancel_buttonn.config(state=tk.NORMAL)
         query = self.search_entry.get().strip()
         if not query:
             # Show message to enter a link if query is empty
@@ -754,6 +758,7 @@ class HomeGui(ttk.Frame):
                         
                         # Schedule UI updates in main thread
                         self.parent.after(0, self.create_video_item, video, i)
+                        
 
             except Exception as e:
                 if self._search_active:  
@@ -1279,38 +1284,40 @@ class HomeGui(ttk.Frame):
         else:
             print("start_download: Received URL as a string.")
         
-        # Adding prints, i was confused so just added for debugging
+        # Debugging prints
         print(f"start_download: URL = {url}")
         print(f"start_download: Selected format string = {format_string}")
         print(f"start_download: Output path = {output_path}")
-        self.status_label.config(text="Starting download...", foreground="blue") #Update in UI
+        self.status_label.config(text="Starting download...", foreground="blue")
         self.progress['value'] = 0
-        
-        # Store current download parameters for resume/restart functionality
+
+        # Store current download parameters
         self.current_url = url
         self.current_format_string = format_string
         self.current_output_path = output_path
-        
-        # Reset cancel flag before starting new download
+
+        # Reset flags
         self.cancel_requested = False
         self.download_cancelled = False
-        
-        # Enable cancel button
+
+        # Reset stop event before starting new download
+        self.stop_event.clear()
+
+        # Enable/Disable buttons
         if hasattr(self, 'cancel_button'):
             self.cancel_button.config(state=tk.NORMAL)
-        
-        # Disable resume/restart buttons when starting new download
         if hasattr(self, 'resume_button') and hasattr(self, 'restart_button'):
             self.resume_button.config(state=tk.DISABLED)
             self.restart_button.config(state=tk.DISABLED)
-        
-        # Start download in a thread to keep UI responsive
+
+        # Start download thread
         download_thread = threading.Thread(
             target=self.download_thread,
-            args=(url, format_string, output_path, False)  # Added False for no-resume by default
+            args=(url, format_string, output_path, False)
         )
         download_thread.daemon = True
         download_thread.start()
+
 
     #Update the progress bar and status label with download progress
     def update_download_progress(self, d):
@@ -1414,6 +1421,7 @@ class HomeGui(ttk.Frame):
             self.progress.update_idletasks()
 
     def download_thread(self, url, format_string, output_path, resume=False):
+        self.cancel_button.config(state=tk.NORMAL)
         try:
             # Use queues for thread-safe communication with UI
             if not hasattr(self, 'ui_update_queue'):
@@ -1454,6 +1462,10 @@ class HomeGui(ttk.Frame):
             
             # Throttled progress hook with queue-based updates
             def throttled_progress_hook(d):
+                # Check for stop event first
+                if hasattr(self, 'stop_event') and self.stop_event.is_set():
+                    raise Exception("Download cancelled by user")
+                    
                 # Mark download as started to cancel initialization timers
                 if not self.download_started:
                     self.download_started = True
@@ -1913,6 +1925,7 @@ class HomeGui(ttk.Frame):
         
         # Proceed with cancellation
         self.cancel_requested = True
+        self.stop_event.set()
         self.download_cancelled = True
         self.status_label.config(text="Cancelling download...", foreground="red")        
         if hasattr(self, 'cancel_button'):
