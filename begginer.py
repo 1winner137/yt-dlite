@@ -1,3 +1,6 @@
+#pass on documentantion - upload it also source forge
+#fix bug cancel download and remove all bad files
+#
 import contextlib
 import copy
 import hashlib
@@ -1757,7 +1760,6 @@ class HomeGui(ttk.Frame):
         except Exception as e:
             print(f"Error saving download state: {str(e)}")
 
-
     def clear_download_state(self):
         try:
             if hasattr(self, 'current_url'):
@@ -1895,17 +1897,6 @@ class HomeGui(ttk.Frame):
             )
             download_thread.daemon = True
             download_thread.start()
-
-    def on_download_complete(self):
-        self.status_label.config(text="Download completed successfully!", foreground="green")
-        self.progress['value'] = 100
-        
-        # Disable all download control buttons
-        if hasattr(self, 'cancel_button'):
-            self.cancel_button.config(state=tk.DISABLED)
-        self.deactivate_recovery_buttons()
-        if hasattr(self, 'download_tracker'):
-            del self.download_tracker
 
     def cancel_download(self):
         print("Cancel download requested")       
