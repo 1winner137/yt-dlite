@@ -218,7 +218,7 @@ def main():
         description="""
         -----------------------------------------------------------------------------
         Video & Audio Downloader using yt-dlp
-        Developed by Winner_Nova.
+        Developed by 1winner37.
         -----------------------------------------------------------------------------
         """,
         epilog=(
