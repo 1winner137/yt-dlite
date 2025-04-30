@@ -2,7 +2,7 @@
 
 **YT-Dlite** is a lightweight, versatile video/audio downloader that offers both a clean GUI and powerful command-line interface. Built on top of yt-dlp with simplicity in mind, and they works similarly in many ways.
 
-![YT-Dlite Logo](https://github.com/1winner137/yt-dlite/blob/main/.github/yt-dlp.svg)
+![YT-Dlite Logo](https://github.com/1winner137/yt-dlite/blob/main/.github/yt-dlite.png)
 
 ## Features
 
