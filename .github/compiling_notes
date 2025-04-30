@@ -1,8 +1,8 @@
 #GUI
-pyinstaller --onefile --windowed --clean --strip .\yt-dlite.py - windows
-pyinstaller --onefile --windowed --clean --name yt-lite ./yt-dlite.py - unix/debian
+pyinstaller --onefile --windowed --clean --strip .\yt-dlite.py  --icon=".\yt-dlite.ico" - windows
+pyinstaller --onefile --windowed --clean --name yt-lite ./yt-dlite.py --icon=".\yt-dlite.ico" - unix/debian
 you can add --icon=yt-dlite.ico if you have one
 
 #Non-GUI
-pyinstaller --onefile  --clean --strip .\yt-dlitec.py - windows
-pyinstaller --onefile  --clean --strip --name yt-lite4terminal ./yt-dlitec.py - unix/debian
+pyinstaller --onefile  --clean --strip --name yt-dlite4cmd .\yt-dlitec.py --icon=".\yt-dlite.ico" - windows
+pyinstaller --onefile  --clean --strip --name yt-lite4terminal ./yt-dlitec.py  --icon=".\yt-dlite.ico" - unix/debian
