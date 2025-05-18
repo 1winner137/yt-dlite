@@ -7,6 +7,18 @@ official link
 
 https://1winner137.github.io/ytdlite/index.html
 
+## Yt-dlite version 2
+will go by name 4all downloader as it is kind ultimate, going to be the best downloadr so far by combining all power of all opensource mdeia downloader and custom downloader executable. biult in media player, custom design, mult-lingual. all features of yt-dlite version1.0.0. check this link
+
+https://github.com/1winner137/4all-downloader
+
+sample image
+
+![Welcome Screen – Multi-language Support](./.github/4all-welcome.PNG)  
+
+This is just a sample image, showcasing multilingual support for popular languages such as Spanish, Arabic, Hindi, English, French, Swahili, Korean, German, and many others.
+
+
 ## Features
 
 - **Dual Interface**: Use the intuitive GUI or efficient command-line interface.
